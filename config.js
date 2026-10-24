@@ -18,7 +18,7 @@
 window.APP_CONFIG = {
   // 1. URL de tu Webhook de Google Apps Script (termina en /exec)
   // Aquí se enviarán las solicitudes para crear carpetas en Drive y subir comprobantes.
-  WEBHOOK_URL: "https://script.google.com/macros/s/https://script.google.com/macros/s/AKfycbz_EVEyldCBITgBrfHimOtVs-SSDqdlvfpHh1pGgGnk0_VUnr1zP4St8pB7M1d6VbjsIg/exec/exec",
+  WEBHOOK_URL: "https://script.google.com/macros/s/https://https://script.google.com/macros/s/AKfycbz_EVEyldCBITgBrfHimOtVs-SSDqdlvfpHh1pGgGnk0_VUnr1zP4St8pB7M1d6VbjsIg/exec",
 
   // 2. Credenciales de Supabase (Para sincronización en la nube y tiempo real)
   // Obtén estos valores en tu panel de Supabase: Project Settings > API
