@@ -633,11 +633,15 @@
 
     // MOTOR DE SUPABASE (SINCRONIZACIÓN AUTOMÁTICA)
     async function initSupabaseClient() {
+      // Limpiar URL eliminando /rest/v1 o barras finales si existen
+      if (state.supabaseUrl) {
+        state.supabaseUrl = state.supabaseUrl.trim().replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
+      }
       const isConfigured = state.supabaseUrl && state.supabaseKey && !state.supabaseUrl.includes('TU_PROYECTO');
       
       if (isConfigured && window.supabase) {
         try {
-          supabaseClient = window.supabase.createClient(state.supabaseUrl, state.supabaseKey);
+          supabaseClient = window.supabase.createClient(state.supabaseUrl, state.supabaseKey.trim());
           
           document.getElementById('status-dot').className = 'w-2 h-2 rounded-full bg-emerald-400 inline-block animate-pulse';
           document.getElementById('status-text').innerText = 'Supabase Conectado';
@@ -681,6 +685,22 @@
             driveFolderUrl: e.drive_folder_url,
             driveFolderId: e.drive_folder_id
           }));
+        } else if (!errEvt && dbEvents && dbEvents.length === 0 && state.events.length > 0) {
+          // Si Supabase está vacía, subir el evento demo inicial automáticamente
+          for (const ev of state.events) {
+            await supabaseClient.from('events').upsert([{
+              id: ev.id,
+              title: ev.title,
+              date: ev.date,
+              capacity: ev.capacity,
+              is_paid: ev.isPaid,
+              price: ev.price,
+              bank_info: ev.bankInfo,
+              description: ev.description,
+              drive_folder_url: ev.driveFolderUrl,
+              drive_folder_id: ev.driveFolderId
+            }]);
+          }
         }
 
         const { data: dbRegs, error: errReg } = await supabaseClient.from('registrations').select('*').order('created_at', { ascending: false });
@@ -692,6 +712,8 @@
         if (!state.currentEventId && state.events.length > 0) {
           state.currentEventId = state.events[0].id;
         }
+        renderEventsList();
+        renderCurrentEventDetails();
       } catch (err) {
         console.warn('No se pudo descargar datos de Supabase, usando respaldo local:', err);
       }
