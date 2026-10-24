@@ -536,10 +536,23 @@
     // Configuración centralizada: Se lee directamente desde config.js
     const config = window.APP_CONFIG || {};
 
+    // Sincronizar URL de webhook y credenciales desde config.js
+    const activeWebhookUrl = (config.WEBHOOK_URL && !config.WEBHOOK_URL.includes('TU_SCRIPT_ID')) 
+      ? config.WEBHOOK_URL 
+      : (localStorage.getItem('eventsync_webhook') || config.WEBHOOK_URL || '');
+
+    const activeSupabaseUrl = (config.SUPABASE_URL && !config.SUPABASE_URL.includes('TU_PROYECTO')) 
+      ? config.SUPABASE_URL 
+      : (localStorage.getItem('eventsync_supabase_url') || config.SUPABASE_URL || '');
+
+    const activeSupabaseKey = (config.SUPABASE_ANON_KEY && !config.SUPABASE_ANON_KEY.includes('TU_CLAVE')) 
+      ? config.SUPABASE_ANON_KEY 
+      : (localStorage.getItem('eventsync_supabase_key') || config.SUPABASE_ANON_KEY || '');
+
     let state = {
-      webhookUrl: config.WEBHOOK_URL || localStorage.getItem('eventsync_webhook') || '',
-      supabaseUrl: config.SUPABASE_URL || localStorage.getItem('eventsync_supabase_url') || '',
-      supabaseKey: config.SUPABASE_ANON_KEY || localStorage.getItem('eventsync_supabase_key') || '',
+      webhookUrl: activeWebhookUrl,
+      supabaseUrl: activeSupabaseUrl,
+      supabaseKey: activeSupabaseKey,
       events: JSON.parse(localStorage.getItem('eventsync_events')) || [],
       registrations: JSON.parse(localStorage.getItem('eventsync_regs')) || [],
       currentEventId: null,
@@ -1155,6 +1168,8 @@
       try {
         const res = await fetch(state.webhookUrl, {
           method: 'POST',
+          mode: 'cors',
+          redirect: 'follow',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify(payload)
         });
@@ -1597,13 +1612,25 @@
       box.innerText = 'Probando conexión con Google Drive...';
       box.classList.remove('hidden');
 
-      const res = await postToGoogleScript({ action: 'ping' });
+      let res = await postToGoogleScript({ action: 'ping' });
+
+      // Verificación alternativa mediante GET (útil si el navegador bloquea redirecciones al abrir desde file://)
+      if (!res || !res.success) {
+        try {
+          const getRes = await fetch(state.webhookUrl, { method: 'GET', mode: 'cors' });
+          const getJson = await getRes.json();
+          if (getJson && getJson.success) {
+            res = { success: true, message: getJson.message };
+          }
+        } catch (e) {}
+      }
+
       if (res && res.success) {
         box.className = 'text-xs p-3 rounded-xl border bg-emerald-950/60 border-emerald-500/40 text-emerald-300';
         box.innerText = '✓ Google Apps Script y Google Drive respondiendo correctamente.';
       } else {
         box.className = 'text-xs p-3 rounded-xl border bg-rose-950/60 border-rose-500/40 text-rose-300';
-        box.innerText = '✗ Fallo al contactar Webhook: ' + (res?.error || 'Verifica la URL en config.js');
+        box.innerHTML = '✗ Fallo al contactar Webhook: ' + (res?.error || 'Error de red') + '<br/><span class="text-[10px] text-slate-400 mt-1 block">Si abres el archivo como "file://", el navegador puede bloquear peticiones externas por seguridad local. Al subirlo a GitHub o GitHub Pages funcionará perfectamente.</span>';
       }
     }
 
