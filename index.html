@@ -3,6 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- Seguridad (CSP): limita desde dónde se cargan scripts y a qué servidores puede conectarse el panel. Si agregas otro servicio o librería externa, hay que añadirlo aquí. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://script.google.com https://script.googleusercontent.com; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'self'">
   <title>EventSync - Gestión de Eventos & Control de Accesos</title>
   
   <!-- Enlaces antiguos ?evento=... se envían a la página de inscripción -->
