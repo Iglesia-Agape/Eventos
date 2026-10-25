@@ -243,6 +243,15 @@ async function postToGoogleScript(payload) {
   } catch (err) { return { success: false, error: err.message || String(err) }; }
 }
 
+// Cédula repetida en este evento (la función SQL es opcional: si no existe, se omite y la base de datos igual lo impide)
+const DUP_MSG = 'Esta cédula ya está inscrita en este evento. Si necesitas tu pase, comunícate con la iglesia.';
+async function dniAlreadyRegistered(dni) {
+  try {
+    const { data, error } = await sb.rpc('dni_ya_inscrito', { p_event_id: evt.id, p_dni: dni });
+    return !error && data === true;
+  } catch (e) { return false; }
+}
+
 // Compresión de fotos en el navegador (igual que antes)
 function compressImageFile(file, maxWidth = 1600, quality = 0.8) {
   return new Promise((resolve) => {
@@ -285,6 +294,8 @@ $('reg-form').addEventListener('submit', async (e) => {
   const btn = $('btn-submit'), prog = $('progress'), progText = $('progress-text');
   btn.disabled = true; prog.classList.remove('hidden');
   try {
+    if (await dniAlreadyRegistered(dni)) return formError(DUP_MSG);
+
     // Volver a revisar cupos justo antes de inscribir
     const spots = await remainingSpots();
     if (spots !== null && spots <= 0) return showMsg('😔', 'Cupos agotados', 'Este evento alcanzó su capacidad máxima.');
@@ -317,7 +328,11 @@ $('reg-form').addEventListener('submit', async (e) => {
       is_paid: reg.isPaid, payment_method: reg.paymentMethod, payment_status: reg.paymentStatus,
       receipt_url: reg.receiptUrl, attended: reg.attended, created_at: reg.createdAt
     }]);
-    if (error) { console.error(error); return formError('No pudimos completar tu inscripción. Inténtalo de nuevo en un momento.'); }
+    if (error) {
+      console.error(error);
+      if (String(error.message || '').includes('uq_registrations_event_dni')) return formError(DUP_MSG);
+      return formError('No pudimos completar tu inscripción. Inténtalo de nuevo en un momento.');
+    }
 
     myPass = { code, name, dni, isPaid: reg.isPaid, paymentMethod: method, paymentStatus };
     try { localStorage.setItem(passKey(), JSON.stringify(myPass)); } catch (e) {}
