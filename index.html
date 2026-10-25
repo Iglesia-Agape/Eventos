@@ -5,14 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>EventSync - Gestión de Eventos & Control de Accesos</title>
   
+  <!-- Enlaces antiguos ?evento=... se envían a la página de inscripción -->
+  <script>(function(){var id=new URLSearchParams(location.search).get('evento');if(id){location.replace('inscripcion.html?evento='+encodeURIComponent(id));}})();</script>
+
   <!-- Archivo de Configuración Centralizada (Webhook y Supabase) -->
   <script src="config.js"></script>
 
   <!-- Tailwind CSS -->
-  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
   
   <!-- Lucide Icons -->
-  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://unpkg.com/lucide@0.469.0"></script>
   
   <!-- QRCode.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -21,12 +24,14 @@
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
   <!-- Supabase JS Client v2 -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4"></script>
 
   <!-- Canvas Confetti -->
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
 
   <style>
+    /* Mientras no haya sesión de administrador, el panel permanece oculto */
+    body.auth-locked > header, body.auth-locked > main { display: none !important; }
     @media print {
       body * { visibility: hidden; }
       #print-area, #print-area * { visibility: visible; }
@@ -36,7 +41,7 @@
     #qr-reader video { border-radius: 0.75rem; object-fit: cover; width: 100% !important; }
   </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen font-sans flex flex-col antialiased selection:bg-indigo-500 selection:text-white">
+<body class="auth-locked bg-slate-950 text-slate-100 min-h-screen font-sans flex flex-col antialiased selection:bg-indigo-500 selection:text-white">
 
   <!-- ========================================== -->
   <!-- HEADER ADMINISTRADOR (Solo se ve en el Panel) -->
@@ -78,33 +83,38 @@
           <i data-lucide="plus-circle" class="w-4 h-4"></i>
           <span class="hidden sm:inline">Crear Evento</span>
         </button>
+        <button onclick="adminLogout()" id="btn-logout" title="Cerrar sesión" class="hidden px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-rose-500/10 text-rose-300 transition-all">
+          <i data-lucide="log-out" class="w-4 h-4"></i>
+          <span class="hidden sm:inline">Salir</span>
+        </button>
       </nav>
     </div>
   </header>
 
   <!-- ========================================== -->
-  <!-- HEADER PÚBLICO (Solo visible para Asistentes) -->
+  <!-- ACCESO DE ADMINISTRADOR (LOGIN)            -->
   <!-- ========================================== -->
-  <header id="public-header" class="hidden border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-40">
-    <div class="max-w-4xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-      <div class="flex items-center gap-2.5">
-        <div class="bg-indigo-600/20 text-indigo-400 p-2 rounded-xl border border-indigo-500/30">
-          <i data-lucide="calendar" class="w-5 h-5"></i>
+  <div id="auth-gate" class="hidden fixed inset-0 z-50 bg-slate-950 flex items-center justify-center p-4">
+    <div class="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-5">
+      <div class="text-center space-y-2">
+        <div class="inline-flex bg-gradient-to-tr from-indigo-600 to-purple-600 text-white p-3 rounded-2xl shadow-lg shadow-indigo-500/25">
+          <i data-lucide="lock" class="w-6 h-6"></i>
         </div>
-        <div>
-          <h2 class="text-sm sm:text-base font-bold text-white tracking-tight">Ministerio Internacional Ágape</h2>
-          <p class="text-[11px] text-slate-400">Portal Oficial de Inscripciones</p>
-        </div>
+        <h1 class="text-xl font-bold text-white">EventSync</h1>
+        <p class="text-xs text-slate-400">Acceso exclusivo para administradores</p>
       </div>
-      <a href="https://www.agapehn.org" target="_blank" class="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-medium bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700/60 transition">
-        <i data-lucide="globe" class="w-3.5 h-3.5"></i>
-        <span class="hidden sm:inline">agapehn.org</span>
-      </a>
+      <form id="login-form" class="space-y-3">
+        <input type="email" id="login-email" required autocomplete="username" placeholder="Correo del administrador" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 text-sm text-white focus:outline-none focus:border-indigo-500">
+        <input type="password" id="login-password" required autocomplete="current-password" placeholder="Contraseña" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 text-sm text-white focus:outline-none focus:border-indigo-500">
+        <button type="submit" id="btn-login" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white font-semibold text-sm rounded-xl transition">Ingresar</button>
+      </form>
+      <p id="login-error" class="hidden text-xs p-3 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-300"></p>
+      <p class="text-[11px] text-slate-500 text-center">¿Vienes a inscribirte a un evento? Usa el enlace que te compartieron.</p>
     </div>
-  </header>
+  </div>
 
   <!-- Global Alerts / Toast Banner -->
-  <div id="toast-container" class="fixed top-20 right-4 z-50 space-y-2 pointer-events-none"></div>
+  <div id="toast-container" class="fixed top-20 right-4 z-[70] space-y-2 pointer-events-none"></div>
 
   <!-- Main Container -->
   <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
@@ -394,169 +404,6 @@
       </div>
     </section>
 
-    <!-- ========================================== -->
-    <!-- VIEW 4: PUBLIC REGISTRATION PORTAL         -->
-    <!-- (Portal móvil optimizado para asistentes)   -->
-    <!-- ========================================== -->
-    <section id="view-public-reg" class="hidden max-w-xl mx-auto py-2 sm:py-6">
-      <div class="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-8 shadow-2xl space-y-6 relative overflow-hidden">
-        
-        <!-- Subtle Glow -->
-        <div class="absolute -top-12 -right-12 w-32 h-32 bg-indigo-600/10 rounded-full blur-2xl pointer-events-none"></div>
-
-        <!-- Event Hero Header -->
-        <div class="text-center space-y-2.5">
-          <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-            <i data-lucide="ticket" class="w-3.5 h-3.5"></i>
-            <span>Inscripción Oficial</span>
-          </div>
-
-          <h2 id="pub-title" class="text-2xl sm:text-3xl font-extrabold text-white tracking-tight leading-tight">Nombre del Evento</h2>
-          
-          <div class="flex flex-wrap items-center justify-center gap-2 pt-1 text-xs">
-            <span id="pub-date-badge" class="px-3 py-1 rounded-lg bg-slate-950 border border-slate-800 text-slate-300 flex items-center gap-1.5">
-              <i data-lucide="calendar" class="w-3.5 h-3.5 text-indigo-400"></i>
-              <span id="pub-date-text">Cargando fecha...</span>
-            </span>
-            <span id="pub-price-badge" class="px-3 py-1 rounded-lg font-bold"></span>
-          </div>
-
-          <p id="pub-desc" class="text-xs text-slate-400 max-w-md mx-auto leading-relaxed pt-1"></p>
-        </div>
-
-        <!-- ======================================================== -->
-        <!-- CANALES DE PAGO ÁGAPE (SOLO VISIBLE SI EL EVENTO ES DE PAGO) -->
-        <!-- ======================================================== -->
-        <div id="pub-payment-channels" class="hidden space-y-3 pt-2">
-          <div class="flex items-center justify-between border-b border-slate-800 pb-2">
-            <h3 class="text-xs font-bold uppercase tracking-wider text-indigo-400 flex items-center gap-1.5">
-              <i data-lucide="wallet" class="w-4 h-4"></i>
-              Métodos de Pago Oficiales
-            </h3>
-            <span class="text-[10px] text-slate-500">Ministerio Internacional Ágape</span>
-          </div>
-
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
-            
-            <!-- Canal 1: BAC Credomatic -->
-            <div class="bg-slate-950/80 p-3 rounded-2xl border border-slate-800 hover:border-indigo-500/40 transition space-y-1.5">
-              <div class="flex items-center justify-between">
-                <span class="font-bold text-red-400 flex items-center gap-1.5">
-                  <i data-lucide="landmark" class="w-3.5 h-3.5"></i> BAC Credomatic
-                </span>
-                <span class="text-[10px] text-slate-400 font-mono">Transferencia</span>
-              </div>
-              <div>
-                <p class="text-[11px] text-slate-400">Cuenta de Banco:</p>
-                <div class="flex items-center justify-between bg-slate-900 px-2 py-1 rounded-lg border border-slate-800 mt-0.5">
-                  <span class="font-mono font-bold text-white tracking-wider select-all" id="bac-acc-number">730521001</span>
-                  <button type="button" onclick="copyBacAccount()" id="btn-copy-bac" class="text-[10px] text-indigo-400 hover:text-white font-medium flex items-center gap-1 transition">
-                    <i data-lucide="copy" class="w-3 h-3"></i> Copiar
-                  </button>
-                </div>
-              </div>
-              <p class="text-[10px] text-slate-400 truncate">Ministerio Internacional Ágape</p>
-            </div>
-
-            <!-- Canal 2: PayPal -->
-            <div class="bg-slate-950/80 p-3 rounded-2xl border border-slate-800 hover:border-indigo-500/40 transition space-y-1.5 flex flex-col justify-between">
-              <div>
-                <div class="flex items-center justify-between">
-                  <span class="font-bold text-sky-400 flex items-center gap-1.5">
-                    <i data-lucide="credit-card" class="w-3.5 h-3.5"></i> PayPal
-                  </span>
-                  <span class="text-[10px] text-slate-400 font-mono">En Línea</span>
-                </div>
-                <p class="text-[11px] text-slate-400 mt-1">Usuario: <strong class="text-white">@agapehn</strong></p>
-              </div>
-              <a href="https://www.paypal.me/agapehn" target="_blank" class="w-full py-1 text-center bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 font-semibold text-[10px] rounded-lg border border-sky-500/30 transition flex items-center justify-center gap-1">
-                <i data-lucide="external-link" class="w-3 h-3"></i> Abrir PayPal (@agapehn)
-              </a>
-            </div>
-
-            <!-- Canal 3: POS / Tarjeta en Cafetería -->
-            <div class="bg-slate-950/80 p-3 rounded-2xl border border-slate-800 space-y-1">
-              <span class="font-bold text-indigo-400 flex items-center gap-1.5">
-                <i data-lucide="smartphone-nfc" class="w-3.5 h-3.5"></i> Servicio de POS
-              </span>
-              <p class="text-[11px] text-slate-300">Paga con tarjeta de crédito o débito.</p>
-              <p class="text-[10px] text-amber-400/90 font-medium flex items-center gap-1">
-                <i data-lucide="map-pin" class="w-3 h-3"></i> Localizado en área de cafetería
-              </p>
-            </div>
-
-            <!-- Canal 4: Efectivo en Cafetería -->
-            <div class="bg-slate-950/80 p-3 rounded-2xl border border-slate-800 space-y-1">
-              <span class="font-bold text-emerald-400 flex items-center gap-1.5">
-                <i data-lucide="banknote" class="w-3.5 h-3.5"></i> Efectivo
-              </span>
-              <p class="text-[11px] text-slate-300">Paga en efectivo el día del evento.</p>
-              <p class="text-[10px] text-amber-400/90 font-medium flex items-center gap-1">
-                <i data-lucide="map-pin" class="w-3 h-3"></i> En taquilla o cafetería
-              </p>
-            </div>
-
-          </div>
-        </div>
-
-        <!-- Registration Form -->
-        <form id="public-form-submit" onsubmit="handlePublicSubmit(event)" class="space-y-4 pt-1">
-          <div>
-            <label class="block text-xs font-medium text-slate-300 mb-1">Nombre Completo *</label>
-            <input type="text" id="pub-name" required placeholder="Ej. Carlos Mendoza" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 text-sm text-white focus:outline-none focus:border-indigo-500 transition">
-          </div>
-
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label class="block text-xs font-medium text-slate-300 mb-1">Cédula / DNI *</label>
-              <input type="text" id="pub-dni" required placeholder="0801-1998-..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 text-sm text-white focus:outline-none focus:border-indigo-500 transition">
-            </div>
-            <div>
-              <label class="block text-xs font-medium text-slate-300 mb-1">Correo Electrónico *</label>
-              <input type="email" id="pub-email" required placeholder="carlos@ejemplo.com" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 text-sm text-white focus:outline-none focus:border-indigo-500 transition">
-            </div>
-          </div>
-
-          <!-- SECCIÓN DE PAGO (SOLO SE MUESTRA SI EL EVENTO ES DE PAGO) -->
-          <div id="pub-payment-section" class="hidden space-y-3 pt-3 border-t border-slate-800">
-            <label class="block text-xs font-medium text-slate-300">¿Cómo realizarás tu pago? *</label>
-            <select id="pub-pay-method" onchange="togglePaymentProof()" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 text-sm text-white focus:outline-none focus:border-indigo-500 font-medium">
-              <option value="BAC Credomatic">Transferencia BAC Credomatic (Subir comprobante)</option>
-              <option value="PayPal">PayPal (@agapehn - Subir captura)</option>
-              <option value="POS">Servicio de POS (Pagar con Tarjeta en Cafetería)</option>
-              <option value="Efectivo">Efectivo (Pagar en Cafetería el día del evento)</option>
-            </select>
-
-            <!-- Cajón para Adjuntar Comprobante (Solo para BAC y PayPal) -->
-            <div id="pub-proof-box" class="space-y-2 pt-1">
-              <label class="block text-xs font-medium text-slate-300">Adjuntar Comprobante o Captura de Pago *</label>
-              <div class="relative border-2 border-dashed border-slate-800 hover:border-indigo-500/50 rounded-2xl p-4 bg-slate-950/60 transition text-center cursor-pointer">
-                <input type="file" id="pub-proof-file" accept="image/*,.pdf" onchange="previewSelectedProof(event)" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
-                <div id="proof-upload-label" class="space-y-1 pointer-events-none">
-                  <i data-lucide="upload-cloud" class="w-6 h-6 text-indigo-400 mx-auto"></i>
-                  <p class="text-xs text-slate-300 font-medium">Toca aquí para seleccionar foto o PDF</p>
-                  <p class="text-[10px] text-slate-500">Se optimizará y guardará automáticamente en Google Drive</p>
-                </div>
-                <div id="proof-preview-container" class="hidden flex items-center justify-center gap-2 pt-2">
-                  <span id="proof-filename" class="text-xs text-emerald-400 font-mono font-medium"></span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Progress Bar during Submit -->
-          <div id="reg-status-progress" class="hidden text-xs p-3.5 rounded-xl bg-indigo-950/40 border border-indigo-500/30 text-indigo-300 flex items-center gap-2.5">
-            <div class="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin"></div>
-            <span id="reg-status-text">Procesando inscripción...</span>
-          </div>
-
-          <button type="submit" id="btn-submit-reg" class="w-full py-3.5 bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-sm rounded-2xl shadow-xl shadow-indigo-600/25 transition transform active:scale-[0.99] flex items-center justify-center gap-2">
-            <i data-lucide="ticket" class="w-4 h-4"></i>
-            <span id="btn-submit-text">Completar Inscripción & Obtener Pase QR</span>
-          </button>
-        </form>
-      </div>
-    </section>
 
   </main>
 
@@ -694,6 +541,127 @@
     let currentViewingReg = null;
     let brandClickCount = 0;
     let brandClickTimer = null;
+    let realtimeChannel = null;
+
+    // ==========================================
+    // SEGURIDAD: escape de datos, URLs seguras y CSV
+    // ==========================================
+    function esc(v) {
+      return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    function safeUrl(u) {
+      try {
+        const x = new URL(String(u || ''), window.location.href);
+        return (x.protocol === 'https:' || x.protocol === 'http:') ? x.href : '#';
+      } catch (e) { return '#'; }
+    }
+
+    function csvCell(v) {
+      let s = String(v ?? '');
+      if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; // evita inyección de fórmulas en Excel
+      return '"' + s.replace(/"/g, '""') + '"';
+    }
+
+    // Muestra un aviso si una escritura en Supabase falla (antes se ignoraba en silencio)
+    function sbReport(msg) {
+      return (res) => {
+        if (res && res.error) {
+          console.error(msg, res.error);
+          showToast(msg + ': ' + res.error.message, 'error');
+        }
+      };
+    }
+
+    // ==========================================
+    // ACCESO DE ADMINISTRADOR (Supabase Auth)
+    // ==========================================
+    function showAuthGate(message, fatal = false) {
+      document.body.classList.add('auth-locked');
+      document.getElementById('auth-gate').classList.remove('hidden');
+      const err = document.getElementById('login-error');
+      err.innerText = message || '';
+      err.classList.toggle('hidden', !message);
+      document.getElementById('login-form').classList.toggle('hidden', !!fatal);
+      lucide.createIcons();
+    }
+
+    function enterAdminPanel() {
+      document.body.classList.remove('auth-locked');
+      document.getElementById('auth-gate').classList.add('hidden');
+      if (state.events.length > 0 && !state.currentEventId) {
+        state.currentEventId = state.events[0].id;
+      }
+      renderEventsList();
+      renderCurrentEventDetails();
+      lucide.createIcons();
+    }
+
+    function lockAdminPanel() {
+      state.events = [];
+      state.registrations = [];
+      state.currentEventId = null;
+      state.recentCheckins = [];
+      localStorage.removeItem('eventsync_events');
+      localStorage.removeItem('eventsync_regs');
+      if (supabaseClient && realtimeChannel) {
+        supabaseClient.removeChannel(realtimeChannel);
+        realtimeChannel = null;
+      }
+      if (html5QrCodeScanner) stopCameraScanner();
+      document.getElementById('btn-logout')?.classList.add('hidden');
+      showAuthGate();
+    }
+
+    async function startAdminSession() {
+      document.getElementById('status-dot').className = 'w-2 h-2 rounded-full bg-emerald-400 inline-block animate-pulse';
+      document.getElementById('status-text').innerText = 'Supabase Conectado';
+      document.getElementById('badge-connection').classList.remove('hidden');
+      document.getElementById('btn-logout').classList.remove('hidden');
+
+      // Cargar datos frescos de la nube automáticamente
+      await fetchAllDataFromSupabase();
+
+      // Activar canal en tiempo real
+      if (!realtimeChannel) {
+        realtimeChannel = supabaseClient.channel('public-eventsync-all')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, payload => {
+            handleEventRealtime(payload);
+          })
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'registrations' }, payload => {
+            handleRegRealtime(payload);
+          })
+          .subscribe();
+      }
+      enterAdminPanel();
+    }
+
+    async function handleAdminLogin(e) {
+      e.preventDefault();
+      const btn = document.getElementById('btn-login');
+      const email = document.getElementById('login-email').value.trim();
+      const password = document.getElementById('login-password').value;
+      btn.disabled = true;
+      btn.innerText = 'Ingresando...';
+      try {
+        const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+        if (error) {
+          showAuthGate('Correo o contraseña incorrectos.');
+        } else {
+          document.getElementById('login-password').value = '';
+          await startAdminSession();
+          switchTab('dashboard');
+        }
+      } catch (err) {
+        showAuthGate('No se pudo iniciar sesión: ' + err.message);
+      }
+      btn.disabled = false;
+      btn.innerText = 'Ingresar';
+    }
+
+    async function adminLogout() {
+      if (supabaseClient) await supabaseClient.auth.signOut(); // onAuthStateChange bloquea el panel
+    }
 
     // AUDIO BEEP SYNTHESIZER
     function playBeep(success = true) {
@@ -729,7 +697,9 @@
         info: 'bg-slate-900/90 border-slate-700 text-slate-200'
       };
       toast.className = `p-3 rounded-xl border shadow-2xl backdrop-blur-md text-xs font-medium flex items-center gap-2 transform transition-all duration-300 pointer-events-auto ${colors[type] || colors.info}`;
-      toast.innerHTML = `<span>${message}</span>`;
+      const msgSpan = document.createElement('span');
+      msgSpan.textContent = message;
+      toast.appendChild(msgSpan);
       container.appendChild(toast);
 
       setTimeout(() => {
@@ -739,73 +709,72 @@
       }, 4000);
     }
 
-    // INICIALIZACIÓN PRINCIPAL
+// INICIALIZACIÓN PRINCIPAL
     document.addEventListener('DOMContentLoaded', async () => {
-      // 1. Inicializar Supabase si está en config.js
+      bindTableActions();
+      document.getElementById('login-form')?.addEventListener('submit', handleAdminLogin);
+
+      // Inicializa Supabase; el panel solo se muestra tras iniciar sesión
       await initSupabaseClient();
-
-      // 2. Verificar si se está abriendo un enlace público de evento (?evento=evt-XXXXX)
-      const urlParams = new URLSearchParams(window.location.search);
-      const publicEventId = urlParams.get('evento');
-
-      if (publicEventId) {
-        state.isPublicMode = true;
-        // Ocultar encabezado de administrador y mostrar encabezado público
-        document.getElementById('admin-header')?.classList.add('hidden');
-        document.getElementById('public-header')?.classList.remove('hidden');
-        initPublicRegistrationView(publicEventId);
-      } else {
-        state.isPublicMode = false;
-        document.getElementById('admin-header')?.classList.remove('hidden');
-        document.getElementById('public-header')?.classList.add('hidden');
-        
-        if (state.events.length > 0 && !state.currentEventId) {
-          state.currentEventId = state.events[0].id;
-        }
-        renderEventsList();
-        renderCurrentEventDetails();
-      }
 
       lucide.createIcons();
     });
+
+    // Acciones de la tabla de inscritos (sin onclick inline, para no ejecutar datos de usuarios)
+    function bindTableActions() {
+      const tbody = document.getElementById('registrations-tbody');
+      tbody.addEventListener('click', (ev) => {
+        const el = ev.target.closest('[data-act]');
+        if (!el || el.tagName === 'SELECT') return;
+        const id = el.dataset.id;
+        if (el.dataset.act === 'attendance') toggleAttendance(id);
+        else if (el.dataset.act === 'pass') openPassModal(id);
+        else if (el.dataset.act === 'delete') deleteRegistration(id);
+      });
+      tbody.addEventListener('change', (ev) => {
+        const el = ev.target.closest('select[data-act="pay"]');
+        if (el) updatePaymentStatus(el.dataset.id, el.value);
+      });
+    }
 
     // MOTOR DE SUPABASE (SINCRONIZACIÓN AUTOMÁTICA EN LA NUBE)
     async function initSupabaseClient() {
       if (state.supabaseUrl) {
         state.supabaseUrl = state.supabaseUrl.trim().replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
       }
-      const isConfigured = state.supabaseUrl && state.supabaseKey && !state.supabaseUrl.includes('TU_PROYECTO');
-      
-      if (isConfigured && window.supabase) {
-        try {
-          supabaseClient = window.supabase.createClient(state.supabaseUrl, state.supabaseKey.trim());
-          
-          document.getElementById('status-dot').className = 'w-2 h-2 rounded-full bg-emerald-400 inline-block animate-pulse';
-          document.getElementById('status-text').innerText = 'Supabase Conectado';
-          document.getElementById('badge-connection').classList.remove('hidden');
+      const wantsSupabase = !!(state.supabaseUrl && state.supabaseKey && !state.supabaseUrl.includes('TU_PROYECTO'));
 
-          // Cargar datos frescos de la nube automáticamente
-          await fetchAllDataFromSupabase();
-
-          // Activar canal en tiempo real
-          supabaseClient.channel('public-eventsync-all')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, payload => {
-              handleEventRealtime(payload);
-            })
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'registrations' }, payload => {
-              handleRegRealtime(payload);
-            })
-            .subscribe();
-
-        } catch (e) {
-          console.warn('Aviso Supabase:', e.message);
-        }
-      } else {
+      // Sin Supabase configurado: modo local (los datos solo viven en este navegador)
+      if (!wantsSupabase) {
         document.getElementById('status-text').innerText = 'Modo Local (Google Drive)';
+        enterAdminPanel();
+        return;
+      }
+
+      if (!window.supabase) {
+        showAuthGate('No se pudo cargar Supabase. Revisa tu conexión y recarga la página.', true);
+        return;
+      }
+
+      try {
+        supabaseClient = window.supabase.createClient(state.supabaseUrl, state.supabaseKey.trim());
+        supabaseClient.auth.onAuthStateChange((event) => {
+          if (event === 'SIGNED_OUT') lockAdminPanel();
+        });
+
+        const { data } = await supabaseClient.auth.getSession();
+        if (data && data.session) {
+          await startAdminSession();
+        } else {
+          showAuthGate();
+        }
+      } catch (e) {
+        console.warn('Aviso Supabase:', e.message);
+        showAuthGate('No se pudo conectar con Supabase: ' + e.message, true);
       }
     }
 
-    async function fetchAllDataFromSupabase() {
+        async function fetchAllDataFromSupabase() {
       if (!supabaseClient) return;
       try {
         const { data: dbEvents, error: errEvt } = await supabaseClient.from('events').select('*').order('created_at', { ascending: false });
@@ -947,7 +916,7 @@
     // NAVEGACIÓN ENTRE PESTAÑAS (SOLO EN EL PANEL)
     function switchTab(tabId) {
       if (tabId !== 'checkin' && html5QrCodeScanner) stopCameraScanner();
-      ['dashboard', 'checkin', 'create', 'public-reg'].forEach(t => {
+      ['dashboard', 'checkin', 'create'].forEach(t => {
         document.getElementById(`view-${t}`)?.classList.add('hidden');
         const navBtn = document.getElementById(`nav-${t}`);
         if (navBtn) navBtn.className = 'nav-btn px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-slate-800 text-slate-300 transition-all';
@@ -986,7 +955,7 @@
             <span class="text-[10px] font-semibold ${evt.isPaid ? 'text-emerald-400' : 'text-indigo-400'}">${evt.isPaid ? 'De Pago (' + (evt.price > 0 ? 'L. ' + evt.price : 'Cobro') + ')' : 'Gratuito'}</span>
             <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">${count}/${evt.capacity}</span>
           </div>
-          <h4 class="text-xs font-bold text-white mt-1 line-clamp-1">${evt.title}</h4>
+          <h4 class="text-xs font-bold text-white mt-1 line-clamp-1">${esc(evt.title)}</h4>
         `;
         container.appendChild(card);
       });
@@ -1085,23 +1054,23 @@
         let receiptLink = `<span class="text-slate-500 text-[11px] italic">Sin comprobante</span>`;
         if (reg.receiptUrl) {
           receiptLink = `
-            <a href="${reg.receiptUrl}" target="_blank" class="inline-flex items-center gap-1 text-emerald-400 hover:text-emerald-300 font-semibold text-[11px] bg-emerald-500/10 hover:bg-emerald-500/20 px-2 py-0.5 rounded border border-emerald-500/20 transition">
+            <a href="${esc(safeUrl(reg.receiptUrl))}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 text-emerald-400 hover:text-emerald-300 font-semibold text-[11px] bg-emerald-500/10 hover:bg-emerald-500/20 px-2 py-0.5 rounded border border-emerald-500/20 transition">
               <i data-lucide="external-link" class="w-3 h-3"></i> Ver en Drive
             </a>
           `;
         }
 
         tr.innerHTML = `
-          <td class="py-3 px-4 font-mono font-bold text-emerald-400">${reg.code}</td>
+          <td class="py-3 px-4 font-mono font-bold text-emerald-400">${esc(reg.code)}</td>
           
           <td class="py-3 px-4">
-            <button onclick="toggleAttendance('${reg.id}')" title="Haz clic para alternar asistencia" class="px-2 py-0.5 rounded-full text-[10px] font-semibold border transition ${reg.attended ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-slate-800 text-slate-400 border-slate-700 hover:border-slate-500'}">
+            <button data-act="attendance" data-id="${esc(reg.id)}" title="Haz clic para alternar asistencia" class="px-2 py-0.5 rounded-full text-[10px] font-semibold border transition ${reg.attended ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-slate-800 text-slate-400 border-slate-700 hover:border-slate-500'}">
               ${reg.attended ? '✓ LLEGÓ' : 'PENDIENTE'}
             </button>
           </td>
 
           <td class="py-3 px-4">
-            <select onchange="updatePaymentStatus('${reg.id}', this.value)" class="text-[11px] font-semibold rounded-lg px-2 py-0.5 border bg-slate-950 focus:outline-none ${payBadgeClass}">
+            <select data-act="pay" data-id="${esc(reg.id)}" class="text-[11px] font-semibold rounded-lg px-2 py-0.5 border bg-slate-950 focus:outline-none ${payBadgeClass}">
               <option value="Pagado" ${reg.paymentStatus === 'Pagado' ? 'selected' : ''}>Pagado</option>
               <option value="En Revisión" ${reg.paymentStatus === 'En Revisión' ? 'selected' : ''}>En Revisión</option>
               <option value="Pendiente Pago (POS)" ${reg.paymentStatus.includes('POS') ? 'selected' : ''}>Pendiente POS (Cafetería)</option>
@@ -1112,20 +1081,20 @@
           </td>
 
           <td class="py-3 px-4 font-medium text-slate-200">
-            ${reg.name}
-            <div class="text-[10px] text-slate-400 font-mono">${reg.dni} • ${reg.email || ''}</div>
+            ${esc(reg.name)}
+            <div class="text-[10px] text-slate-400 font-mono">${esc(reg.dni)} • ${esc(reg.email || '')}</div>
           </td>
 
-          <td class="py-3 px-4 text-slate-300 text-[11px]">${reg.paymentMethod || 'N/A'}</td>
+          <td class="py-3 px-4 text-slate-300 text-[11px]">${esc(reg.paymentMethod || 'N/A')}</td>
           
           <td class="py-3 px-4">${receiptLink}</td>
 
           <td class="py-3 px-4 text-right">
             <div class="flex items-center justify-end gap-1.5">
-              <button onclick="openPassModal('${reg.id}')" class="px-2.5 py-1 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 rounded-lg text-[11px] font-medium border border-indigo-500/30 transition flex items-center gap-1">
+              <button data-act="pass" data-id="${esc(reg.id)}" class="px-2.5 py-1 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 rounded-lg text-[11px] font-medium border border-indigo-500/30 transition flex items-center gap-1">
                 <i data-lucide="qr-code" class="w-3 h-3"></i> Pase QR
               </button>
-              <button onclick="deleteRegistration('${reg.id}')" title="Eliminar registro" class="p-1 text-slate-500 hover:text-rose-400 rounded hover:bg-rose-500/10 transition">
+              <button data-act="delete" data-id="${esc(reg.id)}" title="Eliminar registro" class="p-1 text-slate-500 hover:text-rose-400 rounded hover:bg-rose-500/10 transition">
                 <i data-lucide="trash" class="w-3.5 h-3.5"></i>
               </button>
             </div>
@@ -1165,7 +1134,7 @@
       showToast('Inscripción eliminada.', 'info');
 
       if (supabaseClient) {
-        supabaseClient.from('registrations').delete().eq('id', regId).then();
+        supabaseClient.from('registrations').delete().eq('id', regId).then(sbReport('No se pudo eliminar la inscripción'));
       }
     }
 
@@ -1174,17 +1143,23 @@
         supabaseClient.from('registrations').update({
           attended: reg.attended,
           payment_status: reg.paymentStatus
-        }).eq('id', reg.id).then();
+        }).eq('id', reg.id).then(sbReport('No se pudo guardar el cambio'));
       }
     }
 
-    // ENLACES PÚBLICOS
+// ENLACES PÚBLICOS (la inscripción vive ahora en su propia página: inscripcion.html)
+    function getPublicEventLink() {
+      if (!state.currentEventId) return null;
+      const url = new URL('inscripcion.html', window.location.href);
+      url.search = '';
+      url.hash = '';
+      url.searchParams.set('evento', state.currentEventId);
+      return url.toString();
+    }
+
     function copyPublicEventLink() {
-      let base = window.location.origin + window.location.pathname;
-      if (window.location.protocol === 'file:') {
-        base = window.location.href.split('?')[0];
-      }
-      const link = `${base}?evento=${state.currentEventId}`;
+      const link = getPublicEventLink();
+      if (!link) return showToast('Primero selecciona o crea un evento.', 'warning');
       navigator.clipboard.writeText(link).then(() => {
         showToast('¡Link copiado! Puedes compartirlo por WhatsApp, redes o correo a los asistentes.', 'success');
       }).catch(() => {
@@ -1193,167 +1168,9 @@
     }
 
     function openPublicViewFromAdmin() {
-      let base = window.location.origin + window.location.pathname;
-      if (window.location.protocol === 'file:') {
-        base = window.location.href.split('?')[0];
-      }
-      window.open(`${base}?evento=${state.currentEventId}`, '_blank');
-    }
-
-    // ==========================================
-    // VISTA PÚBLICA PARA ASISTENTES (PORTAL MÓVIL)
-    // ==========================================
-    function initPublicRegistrationView(eventId) {
-      const evt = state.events.find(e => e.id === eventId);
-      if (!evt) {
-        if (supabaseClient) {
-          supabaseClient.from('events').select('*').eq('id', eventId).single().then(({ data, error }) => {
-            if (data && !error) {
-              const loadedEvt = {
-                id: data.id,
-                title: data.title,
-                date: data.date,
-                capacity: data.capacity,
-                isPaid: data.is_paid,
-                price: parseFloat(data.price) || 0,
-                bankInfo: data.bank_info,
-                description: data.description,
-                driveFolderUrl: data.drive_folder_url,
-                driveFolderId: data.drive_folder_id
-              };
-              state.events.unshift(loadedEvt);
-              renderPublicEventDetails(loadedEvt);
-            } else {
-              alert('El evento no fue encontrado o el enlace es inválido.');
-            }
-          });
-          return;
-        }
-        alert('El evento no fue encontrado o el enlace es inválido.');
-        return;
-      }
-      renderPublicEventDetails(evt);
-    }
-
-    function renderPublicEventDetails(evt) {
-      state.currentEventId = evt.id;
-      switchTab('public-reg');
-      
-      document.getElementById('pub-title').innerText = evt.title;
-      document.getElementById('pub-desc').innerText = evt.description || 'Te esperamos para vivir este evento juntos.';
-
-      // Fecha legible
-      if (evt.date) {
-        const d = new Date(evt.date);
-        document.getElementById('pub-date-text').innerText = isNaN(d) ? evt.date : d.toLocaleDateString('es-ES', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-      }
-
-      const payChannels = document.getElementById('pub-payment-channels');
-      const paySection = document.getElementById('pub-payment-section');
-      const priceBadge = document.getElementById('pub-price-badge');
-      const submitBtnText = document.getElementById('btn-submit-text');
-
-      // CONDICIÓN CRÍTICA: Solo mostrar opciones de pago si el evento es DE PAGO
-      if (evt.isPaid) {
-        payChannels.classList.remove('hidden');
-        paySection.classList.remove('hidden');
-        
-        priceBadge.innerText = `Inscripción: L. ${evt.price.toFixed(2)}`;
-        priceBadge.className = 'px-3 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold';
-        
-        submitBtnText.innerText = 'Completar Inscripción & Obtener Pase QR';
-        togglePaymentProof();
-      } else {
-        // EVENTO GRATUITO: Ocultar completamente todos los métodos de pago
-        payChannels.classList.add('hidden');
-        paySection.classList.add('hidden');
-        
-        priceBadge.innerText = '✓ Evento 100% Gratuito';
-        priceBadge.className = 'px-3 py-1 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-bold';
-        
-        submitBtnText.innerText = 'Confirmar Asistencia & Obtener Pase QR';
-      }
-
-      lucide.createIcons();
-    }
-
-    function copyBacAccount() {
-      const acc = document.getElementById('bac-acc-number').innerText;
-      navigator.clipboard.writeText(acc).then(() => {
-        const btn = document.getElementById('btn-copy-bac');
-        btn.innerHTML = `<i data-lucide="check" class="w-3 h-3 text-emerald-400"></i> ¡Copiado!`;
-        lucide.createIcons();
-        setTimeout(() => {
-          btn.innerHTML = `<i data-lucide="copy" class="w-3 h-3"></i> Copiar`;
-          lucide.createIcons();
-        }, 2500);
-      });
-    }
-
-    function togglePaymentProof() {
-      const method = document.getElementById('pub-pay-method').value;
-      const proofBox = document.getElementById('pub-proof-box');
-
-      // Solo pedir comprobante si eligió Transferencia BAC o PayPal
-      if (method === 'BAC Credomatic' || method === 'PayPal') {
-        proofBox.classList.remove('hidden');
-      } else {
-        proofBox.classList.add('hidden');
-      }
-    }
-
-    function previewSelectedProof(e) {
-      const file = e.target.files[0];
-      const preview = document.getElementById('proof-preview-container');
-      const filename = document.getElementById('proof-filename');
-      const uploadLabel = document.getElementById('proof-upload-label');
-
-      if (file) {
-        preview.classList.remove('hidden');
-        filename.innerText = `✓ ${file.name} (${(file.size / 1024).toFixed(0)} KB)`;
-        uploadLabel.classList.add('opacity-40');
-      } else {
-        preview.classList.add('hidden');
-        uploadLabel.classList.remove('opacity-40');
-      }
-    }
-
-    // COMPRESIÓN DE IMÁGENES CLIENTE (ULTRA RÁPIDO)
-    function compressImageFile(file, maxWidth = 1600, quality = 0.8) {
-      return new Promise((resolve) => {
-        if (!file.type.startsWith('image/')) {
-          const reader = new FileReader();
-          reader.readAsDataURL(file);
-          reader.onload = () => resolve(reader.result.split(',')[1]);
-          return;
-        }
-
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = (event) => {
-          const img = new Image();
-          img.src = event.target.result;
-          img.onload = () => {
-            const canvas = document.createElement('canvas');
-            let width = img.width;
-            let height = img.height;
-
-            if (width > maxWidth) {
-              height = Math.round((height * maxWidth) / width);
-              width = maxWidth;
-            }
-
-            canvas.width = width;
-            canvas.height = height;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, width, height);
-            
-            const dataUrl = canvas.toDataURL('image/jpeg', quality);
-            resolve(dataUrl.split(',')[1]);
-          };
-          img.onerror = () => resolve(event.target.result.split(',')[1]);
-        };
-      });
+      const link = getPublicEventLink();
+      if (!link) return showToast('Primero selecciona o crea un evento.', 'warning');
+      window.open(link, '_blank');
     }
 
     // COMUNICACIÓN CON GOOGLE APPS SCRIPT
@@ -1374,122 +1191,6 @@
         console.error('Error Apps Script:', err);
         return { success: false, error: err.message || err.toString() };
       }
-    }
-
-    // PROCESAR REGISTRO PÚBLICO
-    async function handlePublicSubmit(e) {
-      e.preventDefault();
-      const btn = document.getElementById('btn-submit-reg');
-      const progressBox = document.getElementById('reg-status-progress');
-      const progressText = document.getElementById('reg-status-text');
-
-      btn.disabled = true;
-      progressBox.classList.remove('hidden');
-      progressText.innerText = 'Validando tus datos...';
-
-      const evt = state.events.find(e => e.id === state.currentEventId);
-      const name = document.getElementById('pub-name').value.trim();
-      const dni = document.getElementById('pub-dni').value.trim();
-      const email = document.getElementById('pub-email').value.trim();
-      
-      const paymentMethod = evt.isPaid ? document.getElementById('pub-pay-method').value : 'Gratuito';
-      
-      let receiptUrl = '';
-      const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-
-      // Determinar estado de pago según el método
-      let paymentStatus = 'Exento';
-      if (evt.isPaid) {
-        if (paymentMethod === 'BAC Credomatic' || paymentMethod === 'PayPal') {
-          paymentStatus = 'En Revisión';
-        } else if (paymentMethod === 'POS') {
-          paymentStatus = 'Pendiente Pago (POS)';
-        } else if (paymentMethod === 'Efectivo') {
-          paymentStatus = 'Pendiente Pago (Efectivo)';
-        } else {
-          paymentStatus = 'Pendiente Pago';
-        }
-      }
-
-      // Subir comprobante a Google Drive si corresponde (BAC o PayPal)
-      if (evt.isPaid && (paymentMethod === 'BAC Credomatic' || paymentMethod === 'PayPal')) {
-        const fileInput = document.getElementById('pub-proof-file');
-        if (fileInput.files.length > 0) {
-          const file = fileInput.files[0];
-          
-          progressText.innerText = 'Optimizando foto del comprobante...';
-          const base64Data = await compressImageFile(file);
-
-          progressText.innerText = 'Subiendo comprobante a Google Drive...';
-          
-          const uploadPayload = {
-            action: 'upload_receipt',
-            folderId: evt.driveFolderId || '',
-            eventName: evt.title,
-            fileDataBase64: base64Data,
-            fileType: file.type.startsWith('image/') ? 'image/jpeg' : file.type,
-            fileName: `EVT-${code} - ${name} - ${paymentMethod}.${file.type === 'application/pdf' ? 'pdf' : 'jpg'}`
-          };
-
-          const uploadResult = await postToGoogleScript(uploadPayload);
-
-          if (uploadResult && uploadResult.success) {
-            receiptUrl = uploadResult.fileUrl;
-            if (uploadResult.folderId && !evt.driveFolderId) {
-              evt.driveFolderId = uploadResult.folderId;
-              evt.driveFolderUrl = uploadResult.folderUrl;
-              saveLocalData();
-            }
-          }
-        }
-      }
-
-      progressText.innerText = 'Generando tu Pase Digital con QR...';
-
-      const newReg = {
-        id: 'reg-' + Date.now(),
-        eventId: evt.id,
-        code: code,
-        name: name,
-        dni: dni,
-        email: email,
-        isPaid: evt.isPaid,
-        paymentMethod: paymentMethod,
-        paymentStatus: paymentStatus,
-        receiptUrl: receiptUrl,
-        attended: false,
-        createdAt: new Date().toISOString()
-      };
-
-      state.registrations.unshift(newReg);
-      saveLocalData();
-
-      // Sincronización automática con Supabase
-      if (supabaseClient) {
-        supabaseClient.from('registrations').insert([{
-          id: newReg.id,
-          event_id: newReg.eventId,
-          code: newReg.code,
-          name: newReg.name,
-          dni: newReg.dni,
-          email: newReg.email,
-          is_paid: newReg.isPaid,
-          payment_method: newReg.paymentMethod,
-          payment_status: newReg.paymentStatus,
-          receipt_url: newReg.receiptUrl,
-          attended: newReg.attended,
-          created_at: newReg.createdAt
-        }]).then();
-      }
-
-      try {
-        confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
-      } catch(e) {}
-
-      progressBox.classList.add('hidden');
-      btn.disabled = false;
-
-      openPassModal(newReg.id);
     }
 
     // MODAL DEL PASE CON QR
@@ -1537,14 +1238,11 @@
       lucide.createIcons();
     }
 
-    function closePassModal() {
+function closePassModal() {
       document.getElementById('modal-pass').classList.add('hidden');
-      const urlParams = new URLSearchParams(window.location.search);
-      if (urlParams.get('evento')) {
-        window.location.href = window.location.pathname + `?evento=${state.currentEventId}`;
-      }
     }
 
+    
     function shareTicketViaWhatsApp() {
       if (!currentViewingReg) return;
       const evt = state.events.find(e => e.id === currentViewingReg.eventId);
@@ -1704,7 +1402,7 @@
           description: newEvent.description,
           drive_folder_url: newEvent.driveFolderUrl,
           drive_folder_id: newEvent.driveFolderId
-        }]).then();
+        }]).then(sbReport('No se pudo guardar el evento en Supabase'));
       }
 
       btn.disabled = false;
@@ -1746,7 +1444,7 @@
           supabaseClient.from('events').update({
             drive_folder_id: result.folderId,
             drive_folder_url: result.folderUrl
-          }).eq('id', evt.id).then();
+          }).eq('id', evt.id).then(sbReport('No se pudo vincular la carpeta de Drive'));
         }
         showToast('¡Carpeta de Google Drive vinculada correctamente!', 'success');
       } else {
@@ -1766,7 +1464,7 @@
         renderCurrentEventDetails();
 
         if (supabaseClient) {
-          supabaseClient.from('events').delete().eq('id', evt.id).then();
+          supabaseClient.from('events').delete().eq('id', evt.id).then(sbReport('No se pudo eliminar el evento'));
         }
         showToast('Evento eliminado.', 'info');
       }
@@ -1795,7 +1493,7 @@
           <div class="flex items-center gap-2 font-bold text-sm text-rose-300">
             <i data-lucide="alert-octagon" class="w-5 h-5"></i> Pase No Encontrado
           </div>
-          <p class="text-xs text-rose-300/80">El código "${rawCode}" no corresponde a ningún participante.</p>
+          <p class="text-xs text-rose-300/80">El código "${esc(rawCode)}" no corresponde a ningún participante.</p>
         `;
         lucide.createIcons();
         return;
@@ -1820,15 +1518,15 @@
           <div class="flex items-center gap-2 font-bold text-sm text-amber-300">
             <i data-lucide="alert-triangle" class="w-5 h-5"></i> ¡Atención: Este pase YA había ingresado!
           </div>
-          <p class="text-xs text-amber-200">Participante: <strong>${reg.name}</strong> (DNI: ${reg.dni})</p>
-          <p class="text-[11px] text-amber-300/80">Código: EVT-${reg.code} | Evento: ${evt ? evt.title : 'General'}</p>
+          <p class="text-xs text-amber-200">Participante: <strong>${esc(reg.name)}</strong> (DNI: ${esc(reg.dni)})</p>
+          <p class="text-[11px] text-amber-300/80">Código: EVT-${esc(reg.code)} | Evento: ${esc(evt ? evt.title : 'General')}</p>
         `;
       } else {
         playBeep(true);
         
         let paymentWarning = '';
         if (reg.isPaid && reg.paymentStatus.includes('Pendiente')) {
-          paymentWarning = `<div class="mt-2 text-xs bg-amber-500/20 text-amber-300 border border-amber-500/30 p-2 rounded-lg font-bold">⚠️ ATENCIÓN: Tiene pago pendiente (${reg.paymentMethod}). Cobrar en Cafetería.</div>`;
+          paymentWarning = `<div class="mt-2 text-xs bg-amber-500/20 text-amber-300 border border-amber-500/30 p-2 rounded-lg font-bold">⚠️ ATENCIÓN: Tiene pago pendiente (${esc(reg.paymentMethod)}). Cobrar en Cafetería.</div>`;
         }
 
         box.className = 'rounded-xl p-5 border bg-emerald-950/60 border-emerald-500/50 text-emerald-200 space-y-2';
@@ -1836,11 +1534,11 @@
           <div class="flex items-center gap-2 font-bold text-base text-emerald-300">
             <i data-lucide="check-circle-2" class="w-6 h-6"></i> ¡Acceso Concedido!
           </div>
-          <p class="text-sm font-semibold text-white">${reg.name}</p>
-          <p class="text-xs text-emerald-300/90 font-mono">DNI: ${reg.dni} | Código: EVT-${reg.code}</p>
+          <p class="text-sm font-semibold text-white">${esc(reg.name)}</p>
+          <p class="text-xs text-emerald-300/90 font-mono">DNI: ${esc(reg.dni)} | Código: EVT-${esc(reg.code)}</p>
           <div class="text-[11px] pt-1 flex items-center gap-2">
-            <span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-medium">Estado: ${reg.paymentStatus}</span>
-            <span class="text-slate-400">Evento: ${evt ? evt.title : 'General'}</span>
+            <span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-medium">Estado: ${esc(reg.paymentStatus)}</span>
+            <span class="text-slate-400">Evento: ${esc(evt ? evt.title : 'General')}</span>
           </div>
           ${paymentWarning}
         `;
@@ -1855,10 +1553,10 @@
         <div class="flex items-center justify-between p-2 rounded-lg bg-slate-950 border border-slate-800">
           <div class="flex items-center gap-2">
             <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-            <span class="font-medium text-white">${item.name}</span>
-            <span class="font-mono text-slate-400">(${item.code})</span>
+            <span class="font-medium text-white">${esc(item.name)}</span>
+            <span class="font-mono text-slate-400">(${esc(item.code)})</span>
           </div>
-          <span class="text-slate-500 font-mono text-[11px]">${item.time}</span>
+          <span class="text-slate-500 font-mono text-[11px]">${esc(item.time)}</span>
         </div>
       `).join('');
     }
@@ -1900,7 +1598,7 @@
       
       let csv = '\uFEFFCodigo,Asistencia,EstadoPago,Nombre,DNI,Email,MetodoPago,ComprobanteDrive,FechaRegistro\n';
       regs.forEach(r => {
-        csv += `"${r.code}","${r.attended ? 'LLEGO' : 'PENDIENTE'}","${r.paymentStatus}","${r.name}","${r.dni}","${r.email || ''}","${r.paymentMethod}","${r.receiptUrl || ''}","${r.createdAt || ''}"\n`;
+        csv += [r.code, r.attended ? 'LLEGO' : 'PENDIENTE', r.paymentStatus, r.name, r.dni, r.email || '', r.paymentMethod, r.receiptUrl || '', r.createdAt || ''].map(csvCell).join(',') + '\n';
       });
 
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });

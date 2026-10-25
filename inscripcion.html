@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>Inscripción | Ministerio Internacional Ágape</title>
+<script src="config.js"></script>
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4"></script>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+<style>
+  @media print { body * { visibility: hidden; } #print-area, #print-area * { visibility: visible; } #print-area { position: absolute; left: 0; top: 0; width: 100%; } .no-print { display: none !important; } }
+</style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans antialiased selection:bg-indigo-500 selection:text-white">
+
+<header class="no-print border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-40">
+  <div class="max-w-xl mx-auto px-4 h-16 flex items-center justify-between">
+    <div class="flex items-center gap-2.5">
+      <img src="Logo.png" alt="" class="w-9 h-9 rounded-xl object-contain" onerror="this.style.display='none'">
+      <div>
+        <h2 class="text-sm font-bold text-white leading-tight">Ministerio Internacional Ágape</h2>
+        <p class="text-[11px] text-slate-400">Portal Oficial de Inscripciones</p>
+      </div>
+    </div>
+    <a href="https://www.agapehn.org" target="_blank" rel="noopener" class="text-xs text-indigo-400 hover:text-indigo-300 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700/60">agapehn.org</a>
+  </div>
+</header>
+
+<main class="max-w-xl mx-auto px-4 py-6">
+
+  <!-- Cargando -->
+  <div id="st-loading" class="py-24 text-center space-y-3">
+    <div class="w-8 h-8 mx-auto border-2 border-indigo-400 border-t-transparent rounded-full animate-spin"></div>
+    <p class="text-sm text-slate-400">Cargando evento...</p>
+  </div>
+
+  <!-- Error / Cerrado -->
+  <div id="st-msg" class="hidden py-16 text-center space-y-3">
+    <div id="msg-icon" class="text-4xl"></div>
+    <h2 id="msg-title" class="text-lg font-bold text-white"></h2>
+    <p id="msg-text" class="text-sm text-slate-400 max-w-sm mx-auto"></p>
+  </div>
+
+  <!-- Formulario -->
+  <div id="st-form" class="hidden space-y-5">
+    <div class="text-center space-y-2">
+      <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">Inscripción oficial</span>
+      <h1 id="ev-title" class="text-2xl sm:text-3xl font-extrabold text-white leading-tight"></h1>
+      <div class="flex flex-wrap justify-center gap-2 text-xs">
+        <span id="ev-date" class="px-3 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300"></span>
+        <span id="ev-price" class="px-3 py-1 rounded-lg font-bold"></span>
+        <span id="ev-spots" class="hidden px-3 py-1 rounded-lg bg-amber-500/10 text-amber-300 border border-amber-500/20 font-semibold"></span>
+      </div>
+      <p id="ev-desc" class="text-xs text-slate-400 leading-relaxed max-w-md mx-auto"></p>
+    </div>
+
+    <button id="btn-mypass" type="button" class="hidden w-full py-2.5 text-xs font-semibold rounded-xl bg-emerald-500/10 text-emerald-300 border border-emerald-500/30">Ya te inscribiste: ver mi pase</button>
+
+    <!-- Canales de pago (solo eventos de pago) -->
+    <section id="pay-channels" class="hidden bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
+      <h3 class="text-xs font-bold uppercase tracking-wider text-indigo-400">Métodos de pago oficiales</h3>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+        <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1.5">
+          <p class="font-bold text-red-400">BAC Credomatic <span class="text-[10px] text-slate-500 font-mono font-normal">Transferencia</span></p>
+          <div class="flex items-center justify-between bg-slate-900 px-2 py-1 rounded-lg border border-slate-800">
+            <span id="bac-acc" class="font-mono font-bold text-white tracking-wider select-all">730521001</span>
+            <button type="button" id="btn-copy" class="text-[10px] text-indigo-400 hover:text-white font-medium">Copiar</button>
+          </div>
+          <p class="text-[10px] text-slate-400">Ministerio Internacional Ágape</p>
+        </div>
+        <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1.5">
+          <p class="font-bold text-sky-400">PayPal <span class="text-[10px] text-slate-500 font-mono font-normal">En línea</span></p>
+          <p class="text-[11px] text-slate-400">Usuario: <strong class="text-white">@agapehn</strong></p>
+          <a href="https://www.paypal.me/agapehn" target="_blank" rel="noopener" class="block py-1 text-center bg-sky-500/10 text-sky-300 font-semibold text-[10px] rounded-lg border border-sky-500/30">Abrir PayPal</a>
+        </div>
+        <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1">
+          <p class="font-bold text-indigo-400">Servicio de POS</p>
+          <p class="text-[11px] text-slate-300">Paga con tarjeta de crédito o débito.</p>
+          <p class="text-[10px] text-amber-400/90">Área de cafetería</p>
+        </div>
+        <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1">
+          <p class="font-bold text-emerald-400">Efectivo</p>
+          <p class="text-[11px] text-slate-300">Paga en efectivo el día del evento.</p>
+          <p class="text-[10px] text-amber-400/90">Taquilla o cafetería</p>
+        </div>
+      </div>
+    </section>
+
+    <form id="reg-form" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4" novalidate>
+      <div>
+        <label for="f-name" class="block text-xs font-medium text-slate-300 mb-1">Nombre completo *</label>
+        <input id="f-name" type="text" autocomplete="name" maxlength="120" placeholder="Ej. Carlos Mendoza" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 text-sm text-white focus:outline-none focus:border-indigo-500">
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label for="f-dni" class="block text-xs font-medium text-slate-300 mb-1">Cédula / DNI *</label>
+          <input id="f-dni" type="text" inputmode="numeric" maxlength="40" placeholder="0801-1998-00000" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 text-sm text-white focus:outline-none focus:border-indigo-500">
+        </div>
+        <div>
+          <label for="f-email" class="block text-xs font-medium text-slate-300 mb-1">Correo electrónico *</label>
+          <input id="f-email" type="email" autocomplete="email" maxlength="160" placeholder="carlos@ejemplo.com" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 text-sm text-white focus:outline-none focus:border-indigo-500">
+        </div>
+      </div>
+
+      <div id="pay-section" class="hidden space-y-3 pt-3 border-t border-slate-800">
+        <div>
+          <label for="f-method" class="block text-xs font-medium text-slate-300 mb-1">¿Cómo realizarás tu pago? *</label>
+          <select id="f-method" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 text-sm text-white focus:outline-none focus:border-indigo-500">
+            <option value="BAC Credomatic">Transferencia BAC Credomatic (subir comprobante)</option>
+            <option value="PayPal">PayPal @agapehn (subir captura)</option>
+            <option value="POS">Servicio de POS (pagar con tarjeta en cafetería)</option>
+            <option value="Efectivo">Efectivo (pagar en cafetería el día del evento)</option>
+          </select>
+        </div>
+        <div id="proof-box">
+          <label class="block text-xs font-medium text-slate-300 mb-1">Comprobante o captura de pago *</label>
+          <div class="relative border-2 border-dashed border-slate-800 hover:border-indigo-500/50 rounded-2xl p-4 bg-slate-950/60 text-center transition">
+            <input id="f-proof" type="file" accept="image/*,.pdf" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+            <p class="text-xs text-slate-300 font-medium pointer-events-none">Toca aquí para elegir una foto o PDF</p>
+            <p id="proof-name" class="text-[11px] text-slate-500 pointer-events-none mt-1">Máximo 10 MB. Se guarda de forma segura.</p>
+          </div>
+        </div>
+      </div>
+
+      <p id="form-error" class="hidden text-xs p-3 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-300"></p>
+      <div id="progress" class="hidden text-xs p-3.5 rounded-xl bg-indigo-950/40 border border-indigo-500/30 text-indigo-300 flex items-center gap-2.5">
+        <div class="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin"></div>
+        <span id="progress-text">Procesando...</span>
+      </div>
+      <button id="btn-submit" type="submit" class="w-full py-3.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 disabled:opacity-60 text-white font-bold text-sm rounded-2xl shadow-xl shadow-indigo-600/25 transition">Completar inscripción y obtener pase QR</button>
+    </form>
+  </div>
+
+  <!-- Pase digital -->
+  <div id="st-pass" class="hidden space-y-4 text-center">
+    <div class="no-print space-y-1">
+      <div class="text-3xl">🎉</div>
+      <h2 class="text-xl font-bold text-white">¡Listo, ya estás inscrito!</h2>
+      <p class="text-xs text-slate-400">Guarda tu pase: lo presentarás en la entrada.</p>
+    </div>
+    <div id="print-area" class="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-3">
+      <p class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Pase oficial de acceso</p>
+      <h3 id="p-event" class="text-sm font-bold text-white"></h3>
+      <div class="bg-white p-3.5 rounded-2xl inline-block shadow-xl"><div id="qr"></div></div>
+      <p id="p-code" class="text-2xl font-mono font-extrabold tracking-widest text-emerald-400"></p>
+      <p id="p-name" class="text-sm font-bold text-slate-100"></p>
+      <p id="p-dni" class="text-xs text-slate-400 font-mono"></p>
+      <p id="p-status" class="inline-block text-xs font-semibold px-3 py-1 rounded-full"></p>
+      <p class="text-[10px] text-slate-500">Ministerio Internacional Ágape • www.agapehn.org</p>
+    </div>
+    <div class="no-print grid grid-cols-2 gap-2">
+      <button id="btn-save" class="py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl">Guardar imagen</button>
+      <button id="btn-wa" class="py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-xl">Enviar por WhatsApp</button>
+      <button id="btn-print" class="py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-xl">Imprimir</button>
+      <button id="btn-another" class="py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-xl">Inscribir a otra persona</button>
+    </div>
+  </div>
+</main>
+
+<script>
+// ---- Configuración (misma fuente que el panel: config.js) ----
+const cfg = window.APP_CONFIG || {};
+const WEBHOOK_URL = (cfg.WEBHOOK_URL || '').trim();
+const SB_URL = (cfg.SUPABASE_URL || '').trim().replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
+const SB_KEY = (cfg.SUPABASE_ANON_KEY || '').trim();
+const MAX_FILE = 10 * 1024 * 1024;
+
+const $ = (id) => document.getElementById(id);
+let sb = null, evt = null, myPass = null;
+
+function show(name) { ['st-loading', 'st-msg', 'st-form', 'st-pass'].forEach(n => $(n).classList.toggle('hidden', n !== name)); window.scrollTo(0, 0); }
+function showMsg(icon, title, text) { $('msg-icon').textContent = icon; $('msg-title').textContent = title; $('msg-text').textContent = text; show('st-msg'); }
+function fmtDate(d) { const x = new Date(d); return isNaN(x) ? d : x.toLocaleDateString('es-ES', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); }
+function newCode() { const a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', r = new Uint8Array(6); crypto.getRandomValues(r); return Array.from(r, v => a[v % a.length]).join(''); }
+function formError(msg) { const e = $('form-error'); e.textContent = msg || ''; e.classList.toggle('hidden', !msg); }
+const passKey = () => 'eventsync_mypass_' + evt.id;
+
+// ---- Inicio ----
+document.addEventListener('DOMContentLoaded', async () => {
+  const id = new URLSearchParams(location.search).get('evento');
+  if (!id) return showMsg('🔗', 'Enlace incompleto', 'Pide a la iglesia el enlace de inscripción del evento.');
+  if (!SB_URL || !SB_KEY || !window.supabase) return showMsg('⚠️', 'Servicio no disponible', 'No pudimos conectar. Intenta de nuevo en unos minutos.');
+  sb = window.supabase.createClient(SB_URL, SB_KEY);
+
+  // Solo se descarga ESTE evento (nunca la lista de inscritos)
+  const { data, error } = await sb.from('events')
+    .select('id,title,date,capacity,is_paid,price,bank_info,description,drive_folder_id').eq('id', id).maybeSingle();
+  if (error || !data) return showMsg('🔍', 'Evento no encontrado', 'El enlace es inválido o el evento ya no está disponible.');
+  evt = { id: data.id, title: data.title, date: data.date, capacity: data.capacity, isPaid: data.is_paid, price: parseFloat(data.price) || 0, description: data.description, driveFolderId: data.drive_folder_id };
+
+  const spots = await remainingSpots();
+  if (spots !== null && spots <= 0) return showMsg('😔', 'Cupos agotados', 'Este evento alcanzó su capacidad máxima. Gracias por tu interés.');
+  renderEvent(spots);
+  try { myPass = JSON.parse(localStorage.getItem(passKey())); } catch (e) { myPass = null; }
+  $('btn-mypass').classList.toggle('hidden', !myPass);
+  show('st-form');
+});
+
+// Cupos disponibles: usa la función SQL opcional; si no existe aún, simplemente no se muestra
+async function remainingSpots() {
+  try {
+    const { data, error } = await sb.rpc('event_registration_count', { p_event_id: evt.id });
+    if (error || typeof data !== 'number') return null;
+    return evt.capacity - data;
+  } catch (e) { return null; }
+}
+
+function renderEvent(spots) {
+  $('ev-title').textContent = evt.title;
+  $('ev-desc').textContent = evt.description || 'Te esperamos para vivir este evento juntos.';
+  $('ev-date').textContent = evt.date ? fmtDate(evt.date) : 'Fecha por confirmar';
+  const p = $('ev-price');
+  if (evt.isPaid) {
+    p.textContent = 'Inscripción: L. ' + evt.price.toFixed(2);
+    p.className = 'px-3 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold';
+  } else {
+    p.textContent = '✓ Evento 100% gratuito';
+    p.className = 'px-3 py-1 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-bold';
+  }
+  if (spots !== null && spots <= 20) { $('ev-spots').textContent = 'Quedan ' + spots + ' cupos'; $('ev-spots').classList.remove('hidden'); }
+  $('pay-channels').classList.toggle('hidden', !evt.isPaid);
+  $('pay-section').classList.toggle('hidden', !evt.isPaid);
+  $('btn-submit').textContent = evt.isPaid ? 'Completar inscripción y obtener pase QR' : 'Confirmar asistencia y obtener pase QR';
+  toggleProof();
+}
+
+const needsProof = () => evt && evt.isPaid && ['BAC Credomatic', 'PayPal'].includes($('f-method').value);
+function toggleProof() { $('proof-box').classList.toggle('hidden', !needsProof()); }
+$('f-method').addEventListener('change', toggleProof);
+$('f-proof').addEventListener('change', (e) => { const f = e.target.files[0]; $('proof-name').textContent = f ? '✓ ' + f.name + ' (' + Math.round(f.size / 1024) + ' KB)' : 'Máximo 10 MB. Se guarda de forma segura.'; });
+$('btn-copy').addEventListener('click', () => { navigator.clipboard.writeText($('bac-acc').textContent).then(() => { $('btn-copy').textContent = '¡Copiado!'; setTimeout(() => $('btn-copy').textContent = 'Copiar', 2000); }); });
+$('btn-mypass').addEventListener('click', () => myPass && showPass(myPass));
+
+// ---- Google Apps Script (misma comunicación que el panel) ----
+async function postToGoogleScript(payload) {
+  if (!WEBHOOK_URL) return { success: false, error: 'Webhook no configurado' };
+  try {
+    const res = await fetch(WEBHOOK_URL, { method: 'POST', mode: 'cors', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
+    return await res.json();
+  } catch (err) { return { success: false, error: err.message || String(err) }; }
+}
+
+// Compresión de fotos en el navegador (igual que antes)
+function compressImageFile(file, maxWidth = 1600, quality = 0.8) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      if (!file.type.startsWith('image/')) return resolve(reader.result.split(',')[1]);
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let w = img.width, h = img.height;
+        if (w > maxWidth) { h = Math.round(h * maxWidth / w); w = maxWidth; }
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality).split(',')[1]);
+      };
+      img.onerror = () => resolve(event.target.result.split(',')[1]);
+    };
+  });
+}
+
+// ---- Envío ----
+$('reg-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  formError('');
+  const name = $('f-name').value.trim(), dni = $('f-dni').value.trim(), email = $('f-email').value.trim();
+  const method = evt.isPaid ? $('f-method').value : 'Gratuito';
+  const file = $('f-proof').files[0];
+
+  if (name.length < 3) return formError('Escribe tu nombre completo.');
+  if (dni.length < 5) return formError('Escribe tu número de cédula / DNI.');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return formError('Escribe un correo electrónico válido.');
+  if (needsProof()) {
+    if (!file) return formError('Adjunta el comprobante o captura de tu pago.');
+    if (!(file.type.startsWith('image/') || file.type === 'application/pdf')) return formError('El comprobante debe ser una foto o un PDF.');
+    if (file.size > MAX_FILE) return formError('El archivo pesa más de 10 MB. Elige uno más liviano.');
+  }
+
+  const btn = $('btn-submit'), prog = $('progress'), progText = $('progress-text');
+  btn.disabled = true; prog.classList.remove('hidden');
+  try {
+    // Volver a revisar cupos justo antes de inscribir
+    const spots = await remainingSpots();
+    if (spots !== null && spots <= 0) return showMsg('😔', 'Cupos agotados', 'Este evento alcanzó su capacidad máxima.');
+
+    const code = newCode();
+    let paymentStatus = 'Exento';
+    if (evt.isPaid) paymentStatus = needsProof() ? 'En Revisión' : (method === 'POS' ? 'Pendiente Pago (POS)' : method === 'Efectivo' ? 'Pendiente Pago (Efectivo)' : 'Pendiente Pago');
+
+    let receiptUrl = '';
+    if (needsProof()) {
+      progText.textContent = 'Optimizando foto del comprobante...';
+      const base64Data = await compressImageFile(file);
+      progText.textContent = 'Subiendo comprobante...';
+      const up = await postToGoogleScript({
+        action: 'upload_receipt',
+        folderId: evt.driveFolderId || '',
+        eventName: evt.title,
+        fileDataBase64: base64Data,
+        fileType: file.type.startsWith('image/') ? 'image/jpeg' : file.type,
+        fileName: `EVT-${code} - ${name} - ${method}.${file.type === 'application/pdf' ? 'pdf' : 'jpg'}`
+      });
+      if (!up || !up.success) return formError('No pudimos subir tu comprobante. Revisa tu conexión e inténtalo de nuevo.');
+      receiptUrl = up.fileUrl;
+    }
+
+    progText.textContent = 'Generando tu pase digital...';
+    const reg = { id: 'reg-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6), eventId: evt.id, code, name, dni, email, isPaid: evt.isPaid, paymentMethod: method, paymentStatus, receiptUrl, attended: false, createdAt: new Date().toISOString() };
+    const { error } = await sb.from('registrations').insert([{
+      id: reg.id, event_id: reg.eventId, code: reg.code, name: reg.name, dni: reg.dni, email: reg.email,
+      is_paid: reg.isPaid, payment_method: reg.paymentMethod, payment_status: reg.paymentStatus,
+      receipt_url: reg.receiptUrl, attended: reg.attended, created_at: reg.createdAt
+    }]);
+    if (error) { console.error(error); return formError('No pudimos completar tu inscripción. Inténtalo de nuevo en un momento.'); }
+
+    myPass = { code, name, dni, isPaid: reg.isPaid, paymentMethod: method, paymentStatus };
+    try { localStorage.setItem(passKey(), JSON.stringify(myPass)); } catch (e) {}
+    try { confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } }); } catch (e) {}
+    showPass(myPass);
+  } finally {
+    btn.disabled = false; prog.classList.add('hidden');
+  }
+});
+
+// ---- Pase ----
+function showPass(p) {
+  myPass = p;
+  $('p-event').textContent = evt.title;
+  $('p-code').textContent = 'EVT-' + p.code;
+  $('p-name').textContent = p.name;
+  $('p-dni').textContent = 'DNI: ' + p.dni;
+  const st = $('p-status');
+  const map = !p.isPaid ? ['✓ Acceso gratuito confirmado', 'indigo'] : p.paymentStatus === 'Pagado' ? ['✓ Pago aprobado', 'emerald'] : p.paymentStatus === 'En Revisión' ? ['⏳ Comprobante en revisión', 'amber'] : ['📍 Pagar en cafetería (' + p.paymentMethod + ')', 'sky'];
+  st.textContent = map[0];
+  st.className = 'inline-block text-xs font-semibold px-3 py-1 rounded-full border ' + { indigo: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20', emerald: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', amber: 'bg-amber-500/10 text-amber-400 border-amber-500/20', sky: 'bg-sky-500/10 text-sky-400 border-sky-500/20' }[map[1]];
+  $('qr').innerHTML = '';
+  new QRCode($('qr'), { text: 'EVT-' + p.code, width: 160, height: 160, colorDark: '#020617', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.H });
+  show('st-pass');
+}
+
+$('btn-print').addEventListener('click', () => window.print());
+$('btn-another').addEventListener('click', () => { $('reg-form').reset(); $('proof-name').textContent = 'Máximo 10 MB. Se guarda de forma segura.'; formError(''); show('st-form'); });
+$('btn-wa').addEventListener('click', () => {
+  const t = `¡Hola! Aquí está mi pase para *${evt.title}* en Ministerio Internacional Ágape.\n\n👤 *Nombre:* ${myPass.name}\n🔑 *Código de Entrada:* EVT-${myPass.code}\n📄 *DNI:* ${myPass.dni}\n💳 *Estado:* ${myPass.paymentStatus}\n\nPresenta este código al ingresar.`;
+  window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(t), '_blank');
+});
+
+$('btn-save').addEventListener('click', () => {
+  const qr = document.querySelector('#qr img') || document.querySelector('#qr canvas');
+  const c = document.createElement('canvas'); c.width = 600; c.height = 800;
+  const x = c.getContext('2d'), mid = c.width / 2;
+  x.fillStyle = '#0f172a'; x.fillRect(0, 0, 600, 800);
+  x.strokeStyle = '#334155'; x.lineWidth = 4; x.strokeRect(20, 20, 560, 760);
+  x.fillStyle = '#6366f1'; x.fillRect(20, 20, 560, 100);
+  x.textAlign = 'center'; x.fillStyle = '#fff'; x.font = 'bold 22px sans-serif'; x.fillText('MINISTERIO INTERNACIONAL ÁGAPE', mid, 60);
+  x.fillStyle = '#e0e7ff'; x.font = '14px sans-serif'; x.fillText('PASE DIGITAL DE ACCESO', mid, 90);
+  x.fillStyle = '#fff'; x.font = 'bold 24px sans-serif'; x.fillText(evt.title.substring(0, 36), mid, 170);
+  if (qr) { x.fillStyle = '#fff'; x.fillRect(mid - 110, 210, 220, 220); x.drawImage(qr, mid - 95, 225, 190, 190); }
+  x.fillStyle = '#34d399'; x.font = 'bold 32px monospace'; x.fillText('EVT-' + myPass.code, mid, 480);
+  x.fillStyle = '#f8fafc'; x.font = 'bold 22px sans-serif'; x.fillText(myPass.name, mid, 530);
+  x.fillStyle = '#94a3b8'; x.font = '16px monospace'; x.fillText('DNI: ' + myPass.dni, mid, 565);
+  x.fillStyle = myPass.isPaid ? '#f59e0b' : '#38bdf8'; x.font = 'bold 16px sans-serif'; x.fillText('Estado: ' + myPass.paymentStatus, mid, 615);
+  x.fillStyle = '#64748b'; x.font = '14px sans-serif'; x.fillText('Presenta este código en la entrada • www.agapehn.org', mid, 740);
+  const a = document.createElement('a');
+  a.download = 'Pase_' + myPass.name.replace(/\s+/g, '_') + '_EVT-' + myPass.code + '.png';
+  a.href = c.toDataURL('image/png'); a.click();
+});
+</script>
+</body>
+</html>
