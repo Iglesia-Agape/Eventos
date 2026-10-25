@@ -5,11 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="robots" content="noindex">
 <title>Inscripción | Ministerio Internacional Ágape</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <script src="config.js"></script>
-<script src="https://cdn.tailwindcss.com/3.4.17"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4"></script>
-<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+<link rel="stylesheet" href="estilos.css">
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
 <style>
   @media print { body * { visibility: hidden; } #print-area, #print-area * { visibility: visible; } #print-area { position: absolute; left: 0; top: 0; width: 100%; } .no-print { display: none !important; } }
 </style>
@@ -19,7 +21,7 @@
 <header class="no-print border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-40">
   <div class="max-w-xl mx-auto px-4 h-16 flex items-center justify-between">
     <div class="flex items-center gap-2.5">
-      <img src="Logo.png" alt="" class="w-9 h-9 rounded-xl object-contain" onerror="this.style.display='none'">
+      <img src="Logo.png" alt="" width="36" height="36" decoding="async" class="w-9 h-9 rounded-xl object-contain" onerror="this.style.display='none'">
       <div>
         <h2 class="text-sm font-bold text-white leading-tight">Ministerio Internacional Ágape</h2>
         <p class="text-[11px] text-slate-400">Portal Oficial de Inscripciones</p>
