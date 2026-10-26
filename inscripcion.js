@@ -19,7 +19,7 @@ let sb = null, evt = null, myPass = null;
 
 function show(name) { ['st-loading', 'st-msg', 'st-form', 'st-pass'].forEach(n => $(n).classList.toggle('hidden', n !== name)); window.scrollTo(0, 0); }
 function showMsg(icon, title, text) { $('msg-icon').textContent = icon; $('msg-title').textContent = title; $('msg-text').textContent = text; show('st-msg'); }
-function fmtDate(d) { const x = new Date(d); return isNaN(x) ? d : x.toLocaleDateString('es-ES', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); }
+function fmtDate(d) { const x = new Date(d); return isNaN(x) ? d : x.toLocaleDateString('es-ES', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }); }
 function newCode() { const a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', r = new Uint8Array(6); crypto.getRandomValues(r); return Array.from(r, v => a[v % a.length]).join(''); }
 function formError(msg) { const e = $('form-error'); e.textContent = msg || ''; e.classList.toggle('hidden', !msg); }
 const passKey = () => 'eventsync_mypass_' + evt.id;
