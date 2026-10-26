@@ -1538,9 +1538,10 @@ function closePassModal() {
 
       const regsCount = state.registrations.filter(r => r.eventId === evt.id).length;
       document.getElementById('form-title-text').innerText = 'Editar evento';
-      document.getElementById('form-subtitle').innerText = regsCount > 0
-        ? `Este evento ya tiene ${regsCount} inscritos: el tipo (gratuito o de pago) no se puede cambiar y la capacidad no puede ser menor a ${regsCount}.`
-        : 'Modifica los datos del evento y guarda los cambios.';
+      document.getElementById('form-subtitle').innerText = (regsCount > 0
+        ? `Este evento ya tiene ${regsCount} inscritos: la capacidad no puede ser menor a ${regsCount}. `
+        : 'Modifica los datos del evento y guarda los cambios. ')
+        + 'El tipo (gratuito o de pago) no se puede cambiar; si lo necesitas, crea un evento nuevo.';
       document.getElementById('btn-save-event').innerHTML = `<i data-lucide="check" class="w-4 h-4"></i> Guardar cambios`;
 
       document.getElementById('new-title').value = evt.title || '';
@@ -1564,7 +1565,7 @@ function closePassModal() {
       cap.min = String(Math.max(1, regsCount));
       const typeSel = document.getElementById('new-is-paid');
       typeSel.value = evt.isPaid ? 'true' : 'false';
-      typeSel.disabled = regsCount > 0;
+      typeSel.disabled = true;   // el tipo no se cambia al editar (handleUpdateEvent conserva el original)
       togglePaidOptions();
       document.getElementById('new-price').value = evt.price ?? 0;
       document.getElementById('new-bank-info').value = evt.bankInfo || '';

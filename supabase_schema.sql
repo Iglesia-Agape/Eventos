@@ -32,9 +32,11 @@ CREATE TABLE IF NOT EXISTS public.events (
   bank_info TEXT,
   drive_folder_url TEXT,
   drive_folder_id TEXT,
+  image_url TEXT,                   -- imagen de portada (almacenamiento 'event-images')
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS image_url TEXT;
 
 CREATE TABLE IF NOT EXISTS public.registrations (
   id TEXT PRIMARY KEY,
@@ -211,6 +213,32 @@ BEGIN
   END IF;
 END $$;
 
--- 7. PRIMER ADMINISTRADOR (cambia el correo y córrelo UNA vez) ----------
+-- 7. IMAGEN DE PORTADA DE LOS EVENTOS (almacenamiento) ------------------
+-- Bucket público: cualquiera VE las imágenes (la página de inscripción las muestra
+-- por el enlace directo), pero solo el administrador puede subirlas, cambiarlas o borrarlas.
+-- Solo JPG/PNG/WEBP, máximo 2 MB (el panel las reduce a 1200 px antes de subirlas).
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES ('event-images', 'event-images', true, 2097152, ARRAY['image/jpeg', 'image/png', 'image/webp'])
+ON CONFLICT (id) DO UPDATE
+  SET public = true,
+      file_size_limit = 2097152,
+      allowed_mime_types = ARRAY['image/jpeg', 'image/png', 'image/webp'];
+
+DROP POLICY IF EXISTS "event_images_admin_select" ON storage.objects;
+DROP POLICY IF EXISTS "event_images_admin_insert" ON storage.objects;
+DROP POLICY IF EXISTS "event_images_admin_update" ON storage.objects;
+DROP POLICY IF EXISTS "event_images_admin_delete" ON storage.objects;
+
+CREATE POLICY "event_images_admin_select" ON storage.objects FOR SELECT TO authenticated
+  USING (bucket_id = 'event-images' AND public.is_admin());
+CREATE POLICY "event_images_admin_insert" ON storage.objects FOR INSERT TO authenticated
+  WITH CHECK (bucket_id = 'event-images' AND public.is_admin());
+CREATE POLICY "event_images_admin_update" ON storage.objects FOR UPDATE TO authenticated
+  USING (bucket_id = 'event-images' AND public.is_admin())
+  WITH CHECK (bucket_id = 'event-images' AND public.is_admin());
+CREATE POLICY "event_images_admin_delete" ON storage.objects FOR DELETE TO authenticated
+  USING (bucket_id = 'event-images' AND public.is_admin());
+
+-- 8. PRIMER ADMINISTRADOR (cambia el correo y córrelo UNA vez) ----------
 -- INSERT INTO public.admin_emails (email) VALUES ('correo-del-admin@ejemplo.com')
 --   ON CONFLICT DO NOTHING;
