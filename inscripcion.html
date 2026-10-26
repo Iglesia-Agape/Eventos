@@ -96,24 +96,24 @@
 
     <form id="reg-form" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4" novalidate>
       <div>
-        <label for="f-name" class="block text-xs font-medium text-slate-300 mb-1">Nombre completo *</label>
-        <input id="f-name" type="text" autocomplete="name" maxlength="120" placeholder="Ej. Carlos Mendoza" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 text-sm text-white focus:outline-none focus:border-indigo-500">
+        <label for="f-name" class="block text-xs font-medium text-slate-300 mb-1">Nombre y apellido *</label>
+        <input id="f-name" type="text" autocomplete="name" maxlength="120" placeholder="Ej. Carlos Mendoza" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 text-base sm:text-sm text-white focus:outline-none focus:border-indigo-500">
       </div>
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div class="grid grid-cols-[2fr_1fr] gap-3">
         <div>
-          <label for="f-dni" class="block text-xs font-medium text-slate-300 mb-1">Cédula / DNI *</label>
-          <input id="f-dni" type="text" inputmode="numeric" maxlength="40" placeholder="0801-1998-00000" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 text-sm text-white focus:outline-none focus:border-indigo-500">
+          <label for="f-phone" class="block text-xs font-medium text-slate-300 mb-1">Celular *</label>
+          <input id="f-phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="20" placeholder="9999-9999" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 text-base sm:text-sm text-white focus:outline-none focus:border-indigo-500">
         </div>
         <div>
-          <label for="f-email" class="block text-xs font-medium text-slate-300 mb-1">Correo electrónico *</label>
-          <input id="f-email" type="email" autocomplete="email" maxlength="160" placeholder="carlos@ejemplo.com" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 text-sm text-white focus:outline-none focus:border-indigo-500">
+          <label for="f-age" class="block text-xs font-medium text-slate-300 mb-1">Edad *</label>
+          <input id="f-age" type="number" inputmode="numeric" min="1" max="120" placeholder="Ej. 25" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 text-base sm:text-sm text-white focus:outline-none focus:border-indigo-500">
         </div>
       </div>
 
       <div id="pay-section" class="hidden space-y-3 pt-3 border-t border-slate-800">
         <div>
           <label for="f-method" class="block text-xs font-medium text-slate-300 mb-1">¿Cómo realizarás tu pago? *</label>
-          <select id="f-method" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 text-sm text-white focus:outline-none focus:border-indigo-500">
+          <select id="f-method" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 text-base sm:text-sm text-white focus:outline-none focus:border-indigo-500">
             <option value="BAC Credomatic">Transferencia BAC Credomatic (subir comprobante)</option>
             <option value="PayPal">PayPal @agapehn (subir captura)</option>
             <option value="POS">Servicio de POS (pagar con tarjeta en cafetería)</option>
@@ -152,7 +152,7 @@
       <div class="bg-white p-3.5 rounded-2xl inline-block shadow-xl"><div id="qr"></div></div>
       <p id="p-code" class="text-2xl font-mono font-extrabold tracking-widest text-emerald-400"></p>
       <p id="p-name" class="text-sm font-bold text-slate-100"></p>
-      <p id="p-dni" class="text-xs text-slate-400 font-mono"></p>
+      <p id="p-phone" class="text-xs text-slate-400 font-mono"></p>
       <p id="p-status" class="inline-block text-xs font-semibold px-3 py-1 rounded-full"></p>
       <p class="text-[10px] text-slate-500">Ministerio Internacional Ágape • www.agapehn.org</p>
     </div>

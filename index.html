@@ -6,7 +6,7 @@
 <!-- Seguridad (CSP): limita desde dónde se cargan scripts y a qué servidores puede conectarse el panel. Si agregas otro servicio o librería externa, hay que añadirlo aquí. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://script.google.com https://script.googleusercontent.com; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'self'">
 <link rel="icon" type="image/png" href="Logo.png">
-  <title>EventSync - Gestión de Eventos & Control de Accesos</title>
+  <title>Eventos Ágape - Gestión de Eventos & Control de Accesos</title>
   
   <!-- Enlaces antiguos ?evento=... se envían a la página de inscripción -->
   <script>(function(){var id=new URLSearchParams(location.search).get('evento');if(id){location.replace('inscripcion.html?evento='+encodeURIComponent(id));}})();</script>
@@ -54,11 +54,9 @@
       
       <!-- Brand Logo (5 clics rápidos abren el diagnóstico de conexiones) -->
       <div class="flex items-center gap-3 cursor-pointer select-none" onclick="handleBrandClick()">
-        <div class="bg-gradient-to-tr from-indigo-600 to-purple-600 text-white p-2 rounded-xl shadow-lg shadow-indigo-500/25">
-          <i data-lucide="zap" class="w-6 h-6"></i>
-        </div>
+        <img src="Logo.png" alt="Ágape" width="40" height="40" class="w-10 h-10 object-contain">
         <div>
-          <h1 class="text-xl font-bold bg-gradient-to-r from-indigo-400 via-purple-300 to-pink-400 bg-clip-text text-transparent">EventSync</h1>
+          <h1 class="text-xl font-bold text-white">Eventos Ágape</h1>
           <p class="text-xs text-slate-400 flex items-center gap-1.5">
             <span id="status-dot" class="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse"></span>
             <span id="status-text">Conectado</span>
@@ -100,10 +98,8 @@
   <div id="auth-gate" class="hidden fixed inset-0 z-50 bg-slate-950 flex items-center justify-center p-4">
     <div class="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-5">
       <div class="text-center space-y-2">
-        <div class="inline-flex bg-gradient-to-tr from-indigo-600 to-purple-600 text-white p-3 rounded-2xl shadow-lg shadow-indigo-500/25">
-          <i data-lucide="lock" class="w-6 h-6"></i>
-        </div>
-        <h1 class="text-xl font-bold text-white">EventSync</h1>
+        <img src="Logo.png" alt="Ágape" width="64" height="64" class="w-16 h-16 object-contain mx-auto">
+        <h1 class="text-xl font-bold text-white">Eventos Ágape</h1>
         <p class="text-xs text-slate-400">Acceso exclusivo para administradores</p>
       </div>
       <form id="login-form" class="space-y-3">
@@ -202,7 +198,7 @@
                 <p class="text-xs text-slate-400 font-medium">Asistencia Confirmada</p>
                 <p id="stat-attended" class="text-2xl font-bold text-emerald-400 mt-0.5">0</p>
               </div>
-              <div class="bg-slate-950/60 p-3 rounded-xl border border-slate-800/60">
+              <div id="card-stat-paid" class="bg-slate-950/60 p-3 rounded-xl border border-slate-800/60">
                 <p class="text-xs text-slate-400 font-medium">Pagos Aprobados</p>
                 <p id="stat-paid" class="text-2xl font-bold text-indigo-400 mt-0.5">0</p>
               </div>
@@ -215,15 +211,15 @@
               <div>
                 <h3 class="text-base font-semibold text-white flex items-center gap-2">
                   <i data-lucide="users" class="w-4 h-4 text-indigo-400"></i>
-                  Inscritos & Estado de Pago
+                  <span id="table-title">Inscritos & Estado de Pago</span>
                 </h3>
-                <p class="text-xs text-slate-400">Verifica comprobantes bancarios en Google Drive y actualiza pagos directamente desde el selector.</p>
+                <p id="table-subtitle" class="text-xs text-slate-400">Verifica comprobantes bancarios en Google Drive y actualiza pagos directamente desde el selector.</p>
               </div>
 
               <div class="flex flex-wrap items-center gap-2">
                 <div class="relative">
                   <i data-lucide="search" class="w-4 h-4 text-slate-500 absolute left-3 top-2.5"></i>
-                  <input type="text" id="table-search" oninput="renderTable()" placeholder="Buscar código, DNI o nombre..." class="bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 w-56 sm:w-64">
+                  <input type="text" id="table-search" oninput="renderTable()" placeholder="Buscar código, celular o nombre..." class="bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 w-56 sm:w-64">
                 </div>
                 <select id="table-filter-status" onchange="renderTable()" class="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-indigo-500">
                   <option value="all">Todos los estados</option>
@@ -242,17 +238,7 @@
 
             <div class="overflow-x-auto rounded-xl border border-slate-800">
               <table class="w-full text-left text-xs">
-                <thead class="bg-slate-950 text-slate-400 border-b border-slate-800 uppercase tracking-wider font-semibold">
-                  <tr>
-                    <th class="py-3 px-4">Código</th>
-                    <th class="py-3 px-4">Asistencia</th>
-                    <th class="py-3 px-4">Estado Pago</th>
-                    <th class="py-3 px-4">Nombre / Contacto</th>
-                    <th class="py-3 px-4">Método Seleccionado</th>
-                    <th class="py-3 px-4">Comprobante Drive</th>
-                    <th class="py-3 px-4 text-right">Acciones</th>
-                  </tr>
-                </thead>
+                <thead id="table-head" class="bg-slate-950 text-slate-400 border-b border-slate-800 uppercase tracking-wider font-semibold"></thead>
                 <tbody id="registrations-tbody" class="divide-y divide-slate-800/60 bg-slate-900/50"></tbody>
               </table>
             </div>
@@ -367,22 +353,15 @@
             <!-- CONTENEDOR EXCLUSIVO PARA EVENTOS DE PAGO (Oculto por defecto si es Gratuito) -->
             <div id="paid-fields-container" class="hidden sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-xl bg-slate-950/80 border border-indigo-500/30">
               <div class="sm:col-span-2 flex items-center gap-2 text-indigo-400 font-semibold text-xs border-b border-slate-800 pb-2">
-                <i data-lucide="badge-dollar-sign" class="w-4 h-4"></i>
+                <i data-lucide="banknote" class="w-4 h-4"></i>
                 <span>Configuración de Precios & Métodos de Pago Ágape</span>
               </div>
 
-              <div>
-                <label class="block text-xs font-medium text-slate-300 mb-1">Precio de Inscripción (Lps o $) *</label>
+              <div class="sm:col-span-2">
+                <label class="block text-xs font-medium text-slate-300 mb-1">Precio de inscripción (Lempiras) *</label>
                 <input type="number" id="new-price" value="250.00" min="0" step="0.01" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
               </div>
 
-              <div>
-                <label class="block text-xs font-medium text-slate-300 mb-1">Moneda *</label>
-                <select id="new-currency" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
-                  <option value="L.">Lempiras (L.)</option>
-                  <option value="$">Dólares ($)</option>
-                </select>
-              </div>
 
               <div class="sm:col-span-2">
                 <label class="block text-xs font-medium text-slate-300 mb-1">Información de Cuentas / Canales de Pago (Pre-configurado)</label>
@@ -437,7 +416,7 @@
         <div>
           <p id="pass-code" class="text-xl font-mono font-extrabold tracking-widest text-emerald-400">EVT-XXXXXX</p>
           <p id="pass-holder-name" class="text-sm font-bold text-slate-100 mt-1">Nombre</p>
-          <p id="pass-holder-dni" class="text-xs text-slate-400 font-mono">DNI: -</p>
+          <p id="pass-holder-dni" class="text-xs text-slate-400 font-mono">Cel: -</p>
           <div id="pass-payment-status" class="text-xs font-semibold mt-2.5 inline-block px-3 py-1 rounded-full"></div>
         </div>
         
@@ -558,6 +537,13 @@
         const x = new URL(String(u || ''), window.location.href);
         return (x.protocol === 'https:' || x.protocol === 'http:') ? x.href : '#';
       } catch (e) { return '#'; }
+    }
+
+    // Línea de contacto: celular (nuevas inscripciones) o cédula (inscripciones antiguas)
+    function contactLine(reg) {
+      if (reg.phone) return 'Cel: ' + reg.phone;
+      if (reg.dni) return 'DNI: ' + reg.dni;
+      return 'Sin contacto';
     }
 
     function csvCell(v) {
@@ -892,6 +878,8 @@
         name: r.name,
         dni: r.dni,
         email: r.email,
+        phone: r.phone,
+        age: r.age,
         isPaid: r.is_paid,
         paymentMethod: r.payment_method,
         paymentStatus: r.payment_status,
@@ -1013,46 +1001,95 @@
       document.getElementById('stat-registered').innerText = regs.length;
       document.getElementById('stat-attended').innerText = regs.filter(r => r.attended).length;
       document.getElementById('stat-paid').innerText = regs.filter(r => r.paymentStatus === 'Pagado' || !evt.isPaid).length;
+
+      // Eventos gratuitos: sin tarjeta de pagos ni accesos a Drive (no hay comprobantes)
+      document.getElementById('card-stat-paid').classList.toggle('hidden', !evt.isPaid);
+      document.getElementById('btn-link-drive').classList.toggle('hidden', !evt.isPaid);
+      if (!evt.isPaid) btnOpenDrive.classList.add('hidden');
       
       renderTable();
     }
 
     // RENDERIZADO TABLA DE INSCRITOS
+    const FILTRO_PAGO = `
+      <option value="all">Todos los estados</option>
+      <option value="Pagado">Pagado</option>
+      <option value="En Revisión">En Revisión</option>
+      <option value="Pendiente Pago">Pendiente Pago</option>
+      <option value="Exento">Exento (Gratis)</option>
+      <option value="Llegó">Asistió</option>`;
+    const FILTRO_GRATIS = `
+      <option value="all">Todos</option>
+      <option value="Llegó">Asistió</option>`;
+
     function renderTable() {
       const tbody = document.getElementById('registrations-tbody');
       tbody.innerHTML = '';
-      
+
+      const evt = state.events.find(e => e.id === state.currentEventId);
+      const paid = !!(evt && evt.isPaid);
+
+      // Eventos gratuitos: sin estado de pago, método de pago ni comprobante
+      const filterSel = document.getElementById('table-filter-status');
+      const mode = paid ? 'pago' : 'gratis';
+      if (filterSel.dataset.mode !== mode) {
+        filterSel.innerHTML = paid ? FILTRO_PAGO : FILTRO_GRATIS;
+        filterSel.dataset.mode = mode;
+      }
+      document.getElementById('table-title').innerText = paid ? 'Inscritos & Estado de Pago' : 'Inscritos';
+      document.getElementById('table-subtitle').innerText = paid
+        ? 'Verifica comprobantes bancarios en Google Drive y actualiza pagos directamente desde el selector.'
+        : 'Lista de participantes inscritos en este evento.';
+      document.getElementById('table-head').innerHTML = `<tr>
+        <th class="py-3 px-4">Código</th>
+        <th class="py-3 px-4">Asistencia</th>
+        ${paid ? '<th class="py-3 px-4">Estado Pago</th>' : ''}
+        <th class="py-3 px-4">Nombre y apellido</th>
+        <th class="py-3 px-4">Celular</th>
+        <th class="py-3 px-4">Edad</th>
+        ${paid ? '<th class="py-3 px-4">Método Seleccionado</th><th class="py-3 px-4">Comprobante Drive</th>' : ''}
+        <th class="py-3 px-4 text-right">Acciones</th>
+      </tr>`;
+
       const query = (document.getElementById('table-search')?.value || '').toLowerCase();
-      const statusFilter = document.getElementById('table-filter-status')?.value || 'all';
+      const queryDigits = query.replace(/\D/g, '');
+      const statusFilter = filterSel.value || 'all';
 
       let regs = state.registrations.filter(r => r.eventId === state.currentEventId);
 
       if (query) {
-        regs = regs.filter(r => r.name.toLowerCase().includes(query) || r.code.toLowerCase().includes(query) || r.dni.toLowerCase().includes(query));
+        regs = regs.filter(r =>
+          (r.name || '').toLowerCase().includes(query) ||
+          (r.code || '').toLowerCase().includes(query) ||
+          String(r.phone || '').toLowerCase().includes(query) ||
+          (queryDigits.length >= 3 && String(r.phone || '').replace(/\D/g, '').includes(queryDigits)) ||
+          (r.dni || '').toLowerCase().includes(query)
+        );
       }
 
       if (statusFilter !== 'all') {
         if (statusFilter === 'Llegó') {
           regs = regs.filter(r => r.attended);
         } else {
-          regs = regs.filter(r => r.paymentStatus.includes(statusFilter));
+          regs = regs.filter(r => (r.paymentStatus || '').includes(statusFilter));
         }
       }
 
       if (regs.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" class="py-8 text-center text-slate-500">No hay inscripciones registradas que coincidan con la búsqueda.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="${paid ? 9 : 6}" class="py-8 text-center text-slate-500">No hay inscripciones registradas que coincidan con la búsqueda.</td></tr>`;
         return;
       }
 
       regs.forEach(reg => {
         const tr = document.createElement('tr');
         tr.className = 'hover:bg-slate-800/40 transition group';
+        const ps = reg.paymentStatus || '';
 
         let payBadgeClass = 'bg-slate-800 text-slate-400 border-slate-700';
-        if (reg.paymentStatus === 'Pagado') payBadgeClass = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
-        else if (reg.paymentStatus === 'En Revisión') payBadgeClass = 'bg-amber-500/10 text-amber-400 border-amber-500/30';
-        else if (reg.paymentStatus.includes('Pendiente')) payBadgeClass = 'bg-sky-500/10 text-sky-400 border-sky-500/30';
-        else if (reg.paymentStatus === 'Exento') payBadgeClass = 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30';
+        if (ps === 'Pagado') payBadgeClass = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
+        else if (ps === 'En Revisión') payBadgeClass = 'bg-amber-500/10 text-amber-400 border-amber-500/30';
+        else if (ps.includes('Pendiente')) payBadgeClass = 'bg-sky-500/10 text-sky-400 border-sky-500/30';
+        else if (ps === 'Exento') payBadgeClass = 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30';
 
         let receiptLink = `<span class="text-slate-500 text-[11px] italic">Sin comprobante</span>`;
         if (reg.receiptUrl) {
@@ -1063,35 +1100,43 @@
           `;
         }
 
+        // Inscripciones antiguas (con cédula/correo) conservan esos datos a la vista
+        const legacy = (reg.dni || reg.email)
+          ? `<div class="text-[10px] text-slate-500 font-mono">${esc(reg.dni || '')} ${reg.dni && reg.email ? '•' : ''} ${esc(reg.email || '')}</div>`
+          : '';
+
+        const payCells = paid ? `
+          <td class="py-3 px-4">
+            <select data-act="pay" data-id="${esc(reg.id)}" class="text-[11px] font-semibold rounded-lg px-2 py-0.5 border bg-slate-950 focus:outline-none ${payBadgeClass}">
+              <option value="Pagado" ${ps === 'Pagado' ? 'selected' : ''}>Pagado</option>
+              <option value="En Revisión" ${ps === 'En Revisión' ? 'selected' : ''}>En Revisión</option>
+              <option value="Pendiente Pago (POS)" ${ps.includes('POS') ? 'selected' : ''}>Pendiente POS (Cafetería)</option>
+              <option value="Pendiente Pago (Efectivo)" ${ps.includes('Efectivo') ? 'selected' : ''}>Pendiente Efectivo (Cafetería)</option>
+              <option value="Rechazado" ${ps === 'Rechazado' ? 'selected' : ''}>Rechazado</option>
+              <option value="Exento" ${ps === 'Exento' ? 'selected' : ''}>Exento (Gratis)</option>
+            </select>
+          </td>` : '';
+        const payCells2 = paid ? `
+          <td class="py-3 px-4 text-slate-300 text-[11px]">${esc(reg.paymentMethod || 'N/A')}</td>
+          <td class="py-3 px-4">${receiptLink}</td>` : '';
+
         tr.innerHTML = `
           <td class="py-3 px-4 font-mono font-bold text-emerald-400">${esc(reg.code)}</td>
-          
+
           <td class="py-3 px-4">
             <button data-act="attendance" data-id="${esc(reg.id)}" title="Haz clic para alternar asistencia" class="px-2 py-0.5 rounded-full text-[10px] font-semibold border transition ${reg.attended ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-slate-800 text-slate-400 border-slate-700 hover:border-slate-500'}">
               ${reg.attended ? '✓ LLEGÓ' : 'PENDIENTE'}
             </button>
           </td>
-
-          <td class="py-3 px-4">
-            <select data-act="pay" data-id="${esc(reg.id)}" class="text-[11px] font-semibold rounded-lg px-2 py-0.5 border bg-slate-950 focus:outline-none ${payBadgeClass}">
-              <option value="Pagado" ${reg.paymentStatus === 'Pagado' ? 'selected' : ''}>Pagado</option>
-              <option value="En Revisión" ${reg.paymentStatus === 'En Revisión' ? 'selected' : ''}>En Revisión</option>
-              <option value="Pendiente Pago (POS)" ${reg.paymentStatus.includes('POS') ? 'selected' : ''}>Pendiente POS (Cafetería)</option>
-              <option value="Pendiente Pago (Efectivo)" ${reg.paymentStatus.includes('Efectivo') ? 'selected' : ''}>Pendiente Efectivo (Cafetería)</option>
-              <option value="Rechazado" ${reg.paymentStatus === 'Rechazado' ? 'selected' : ''}>Rechazado</option>
-              <option value="Exento" ${reg.paymentStatus === 'Exento' ? 'selected' : ''}>Exento (Gratis)</option>
-            </select>
-          </td>
-
+          ${payCells}
           <td class="py-3 px-4 font-medium text-slate-200">
             ${esc(reg.name)}
-            <div class="text-[10px] text-slate-400 font-mono">${esc(reg.dni)} • ${esc(reg.email || '')}</div>
+            ${legacy}
           </td>
 
-          <td class="py-3 px-4 text-slate-300 text-[11px]">${esc(reg.paymentMethod || 'N/A')}</td>
-          
-          <td class="py-3 px-4">${receiptLink}</td>
-
+          <td class="py-3 px-4 text-slate-300 font-mono text-[11px]">${esc(reg.phone || '—')}</td>
+          <td class="py-3 px-4 text-slate-300">${esc(reg.age ?? '—')}</td>
+          ${payCells2}
           <td class="py-3 px-4 text-right">
             <div class="flex items-center justify-end gap-1.5">
               <button data-act="pass" data-id="${esc(reg.id)}" class="px-2.5 py-1 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 rounded-lg text-[11px] font-medium border border-indigo-500/30 transition flex items-center gap-1">
@@ -1206,7 +1251,7 @@
       document.getElementById('pass-event-name').innerText = evt ? evt.title : 'Evento';
       document.getElementById('pass-code').innerText = `EVT-${reg.code}`;
       document.getElementById('pass-holder-name').innerText = reg.name;
-      document.getElementById('pass-holder-dni').innerText = `DNI: ${reg.dni}`;
+      document.getElementById('pass-holder-dni').innerText = contactLine(reg) + (reg.age ? ` • ${reg.age} años` : '');
 
       const statusElem = document.getElementById('pass-payment-status');
       if (reg.isPaid) {
@@ -1249,7 +1294,7 @@ function closePassModal() {
     function shareTicketViaWhatsApp() {
       if (!currentViewingReg) return;
       const evt = state.events.find(e => e.id === currentViewingReg.eventId);
-      const text = `¡Hola! Aquí está mi pase para *${evt ? evt.title : 'el evento'}* en Ministerio Internacional Ágape.\n\n👤 *Nombre:* ${currentViewingReg.name}\n🔑 *Código de Entrada:* EVT-${currentViewingReg.code}\n📄 *DNI:* ${currentViewingReg.dni}\n💳 *Estado:* ${currentViewingReg.paymentStatus}\n\nPresenta este código al ingresar.`;
+      const text = `¡Hola! Aquí está mi pase para *${evt ? evt.title : 'el evento'}* en Ministerio Internacional Ágape.\n\n👤 *Nombre:* ${currentViewingReg.name}\n🔑 *Código de Entrada:* EVT-${currentViewingReg.code}\n📱 *${contactLine(currentViewingReg)}*${currentViewingReg.isPaid ? `\n💳 *Estado:* ${currentViewingReg.paymentStatus}` : ''}\n\nPresenta este código al ingresar.`;
       window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
     }
 
@@ -1313,12 +1358,12 @@ function closePassModal() {
 
       ctx.fillStyle = '#94a3b8';
       ctx.font = '16px monospace';
-      ctx.fillText(`DNI: ${reg.dni}`, canvas.width / 2, 565);
+      ctx.fillText(contactLine(reg), canvas.width / 2, 565);
 
       // Estado
       ctx.fillStyle = reg.isPaid ? '#f59e0b' : '#38bdf8';
       ctx.font = 'bold 16px sans-serif';
-      ctx.fillText(`Estado: ${reg.paymentStatus}`, canvas.width / 2, 615);
+      ctx.fillText(reg.isPaid ? `Estado: ${reg.paymentStatus}` : 'Acceso gratuito', canvas.width / 2, 615);
 
       // Pie
       ctx.fillStyle = '#64748b';
@@ -1485,7 +1530,7 @@ function closePassModal() {
       if (!rawCode) return;
       const cleanCode = rawCode.toUpperCase().replace('EVT-', '').trim();
       
-      const reg = state.registrations.find(r => r.code.toUpperCase() === cleanCode || r.dni.replace(/[- ]/g, '') === cleanCode.replace(/[- ]/g, ''));
+      const reg = state.registrations.find(r => r.code.toUpperCase() === cleanCode || (r.dni || '').replace(/[- ]/g, '') !== '' && (r.dni || '').replace(/[- ]/g, '') === cleanCode.replace(/[- ]/g, ''));
       const box = document.getElementById('checkin-result');
       box.classList.remove('hidden');
 
@@ -1521,14 +1566,14 @@ function closePassModal() {
           <div class="flex items-center gap-2 font-bold text-sm text-amber-300">
             <i data-lucide="alert-triangle" class="w-5 h-5"></i> ¡Atención: Este pase YA había ingresado!
           </div>
-          <p class="text-xs text-amber-200">Participante: <strong>${esc(reg.name)}</strong> (DNI: ${esc(reg.dni)})</p>
+          <p class="text-xs text-amber-200">Participante: <strong>${esc(reg.name)}</strong> (${esc(contactLine(reg))})</p>
           <p class="text-[11px] text-amber-300/80">Código: EVT-${esc(reg.code)} | Evento: ${esc(evt ? evt.title : 'General')}</p>
         `;
       } else {
         playBeep(true);
         
         let paymentWarning = '';
-        if (reg.isPaid && reg.paymentStatus.includes('Pendiente')) {
+        if (reg.isPaid && (reg.paymentStatus || '').includes('Pendiente')) {
           paymentWarning = `<div class="mt-2 text-xs bg-amber-500/20 text-amber-300 border border-amber-500/30 p-2 rounded-lg font-bold">⚠️ ATENCIÓN: Tiene pago pendiente (${esc(reg.paymentMethod)}). Cobrar en Cafetería.</div>`;
         }
 
@@ -1538,9 +1583,9 @@ function closePassModal() {
             <i data-lucide="check-circle-2" class="w-6 h-6"></i> ¡Acceso Concedido!
           </div>
           <p class="text-sm font-semibold text-white">${esc(reg.name)}</p>
-          <p class="text-xs text-emerald-300/90 font-mono">DNI: ${esc(reg.dni)} | Código: EVT-${esc(reg.code)}</p>
+          <p class="text-xs text-emerald-300/90 font-mono">${esc(contactLine(reg))} | Código: EVT-${esc(reg.code)}</p>
           <div class="text-[11px] pt-1 flex items-center gap-2">
-            <span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-medium">Estado: ${esc(reg.paymentStatus)}</span>
+            ${reg.isPaid ? `<span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-medium">Estado: ${esc(reg.paymentStatus)}</span>` : ''}
             <span class="text-slate-400">Evento: ${esc(evt ? evt.title : 'General')}</span>
           </div>
           ${paymentWarning}
@@ -1564,34 +1609,59 @@ function closePassModal() {
       `).join('');
     }
 
-    function startCameraScanner() {
-      document.getElementById('scanner-placeholder')?.classList.add('hidden');
-      html5QrCodeScanner = new Html5Qrcode("qr-reader");
-      
-      html5QrCodeScanner.start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 220, height: 220 } },
-        (decodedText) => {
-          document.getElementById('checkin-input').value = decodedText;
-          processCheckinCode(decodedText);
-        },
-        (error) => {}
-      ).then(() => {
-        document.getElementById('btn-start-camera').classList.add('hidden');
-        document.getElementById('btn-stop-camera').classList.remove('hidden');
-      }).catch((err) => {
-        alert('No se pudo acceder a la cámara. Otorga permisos en el navegador.');
-      });
+    let cameraBusy = false;
+    let lastScan = { text: '', time: 0 };
+
+    function setCameraUI(active) {
+      document.getElementById('btn-start-camera').classList.toggle('hidden', active);
+      document.getElementById('btn-stop-camera').classList.toggle('hidden', !active);
+      document.getElementById('scanner-placeholder')?.classList.toggle('hidden', active);
     }
 
-    function stopCameraScanner() {
-      if (html5QrCodeScanner) {
-        html5QrCodeScanner.stop().then(() => {
-          document.getElementById('btn-start-camera').classList.remove('hidden');
-          document.getElementById('btn-stop-camera').classList.add('hidden');
-          document.getElementById('scanner-placeholder')?.classList.remove('hidden');
-        }).catch(() => {});
+    async function startCameraScanner() {
+      if (cameraBusy || html5QrCodeScanner) return;
+      cameraBusy = true;
+      document.getElementById('scanner-placeholder')?.classList.add('hidden');
+      const scanner = new Html5Qrcode('qr-reader');
+      try {
+        await scanner.start(
+          { facingMode: 'environment' },
+          { fps: 10, qrbox: { width: 220, height: 220 } },
+          (decodedText) => {
+            const now = Date.now();
+            // El mismo QR frente a la cámara se lee muchas veces por segundo: se procesa una sola vez
+            if (decodedText === lastScan.text && now - lastScan.time < 4000) return;
+            lastScan = { text: decodedText, time: now };
+            document.getElementById('checkin-input').value = decodedText;
+            processCheckinCode(decodedText);
+          },
+          () => {}
+        );
+        html5QrCodeScanner = scanner;
+        setCameraUI(true);
+        // Si cambiaste de pestaña mientras la cámara arrancaba, se apaga de inmediato
+        if (document.getElementById('view-checkin').classList.contains('hidden')) await stopCameraScanner();
+      } catch (err) {
+        try { scanner.clear(); } catch (e) {}
+        html5QrCodeScanner = null;
+        setCameraUI(false);
+        alert('No se pudo acceder a la cámara. Otorga permisos en el navegador.');
+      } finally {
+        cameraBusy = false;
       }
+    }
+
+    // Nunca lanza errores. La librería falla si se intenta detener una cámara que ya está apagada,
+    // y eso dejaba bloqueado el cambio de pestañas y el botón "Salir".
+    async function stopCameraScanner() {
+      const scanner = html5QrCodeScanner;
+      html5QrCodeScanner = null;
+      if (scanner) {
+        try { await scanner.stop(); } catch (e) {}
+        try { scanner.clear(); } catch (e) {}
+      }
+      setCameraUI(false);
+      lastScan = { text: '', time: 0 };
     }
 
     // EXPORTACIÓN A CSV
@@ -1599,9 +1669,16 @@ function closePassModal() {
       const regs = state.registrations.filter(r => r.eventId === state.currentEventId);
       if (regs.length === 0) return showToast('No hay registros en este evento.', 'info');
       
-      let csv = '\uFEFFCodigo,Asistencia,EstadoPago,Nombre,DNI,Email,MetodoPago,ComprobanteDrive,FechaRegistro\n';
+      const evtCsv = state.events.find(e => e.id === state.currentEventId);
+      const paidCsv = !!(evtCsv && evtCsv.isPaid);
+      const legacyCsv = regs.some(r => r.dni || r.email); // inscripciones antiguas
+      const cols = ['Codigo', 'Asistencia'].concat(paidCsv ? ['EstadoPago'] : [], ['Nombre', 'Celular', 'Edad'],
+        paidCsv ? ['MetodoPago', 'ComprobanteDrive'] : [], ['FechaRegistro'], legacyCsv ? ['DNI', 'Email'] : []);
+      let csv = '\uFEFF' + cols.join(',') + '\n';
       regs.forEach(r => {
-        csv += [r.code, r.attended ? 'LLEGO' : 'PENDIENTE', r.paymentStatus, r.name, r.dni, r.email || '', r.paymentMethod, r.receiptUrl || '', r.createdAt || ''].map(csvCell).join(',') + '\n';
+        const row = [r.code, r.attended ? 'LLEGO' : 'PENDIENTE'].concat(paidCsv ? [r.paymentStatus] : [], [r.name, r.phone || '', r.age ?? ''],
+          paidCsv ? [r.paymentMethod, r.receiptUrl || ''] : [], [r.createdAt || ''], legacyCsv ? [r.dni || '', r.email || ''] : []);
+        csv += row.map(csvCell).join(',') + '\n';
       });
 
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });

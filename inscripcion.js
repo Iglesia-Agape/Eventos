@@ -89,11 +89,12 @@ async function postToGoogleScript(payload) {
   } catch (err) { return { success: false, error: err.message || String(err) }; }
 }
 
-// Cédula repetida en este evento (la función SQL es opcional: si no existe, se omite y la base de datos igual lo impide)
-const DUP_MSG = 'Esta cédula ya está inscrita en este evento. Si necesitas tu pase, comunícate con la iglesia.';
-async function dniAlreadyRegistered(dni) {
+// Inscripción repetida (mismo nombre y celular en este evento). La función SQL es opcional:
+// si no existe se omite, y la base de datos igual impide el duplicado.
+const DUP_MSG = 'Ya existe una inscripción con este nombre y celular en este evento. Si necesitas tu pase, comunícate con la iglesia.';
+async function alreadyRegistered(name, phone) {
   try {
-    const { data, error } = await sb.rpc('dni_ya_inscrito', { p_event_id: evt.id, p_dni: dni });
+    const { data, error } = await sb.rpc('inscripcion_duplicada', { p_event_id: evt.id, p_name: name, p_phone: phone });
     return !error && data === true;
   } catch (e) { return false; }
 }
@@ -124,13 +125,14 @@ function compressImageFile(file, maxWidth = 1600, quality = 0.8) {
 $('reg-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   formError('');
-  const name = $('f-name').value.trim(), dni = $('f-dni').value.trim(), email = $('f-email').value.trim();
+  const name = $('f-name').value.trim().replace(/\s+/g, ' '), phone = $('f-phone').value.trim(), age = parseInt($('f-age').value, 10);
   const method = evt.isPaid ? $('f-method').value : 'Gratuito';
   const file = $('f-proof').files[0];
 
-  if (name.length < 3) return formError('Escribe tu nombre completo.');
-  if (dni.length < 5) return formError('Escribe tu número de cédula / DNI.');
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return formError('Escribe un correo electrónico válido.');
+  if (name.length < 3 || name.split(' ').length < 2) return formError('Escribe tu nombre y apellido.');
+  const phoneDigits = phone.replace(/\D/g, '');
+  if (phoneDigits.length < 8 || phoneDigits.length > 15) return formError('Escribe un número de celular válido (8 dígitos).');
+  if (!Number.isInteger(age) || age < 1 || age > 120) return formError('Escribe tu edad (entre 1 y 120 años).');
   if (needsProof()) {
     if (!file) return formError('Adjunta el comprobante o captura de tu pago.');
     if (!(file.type.startsWith('image/') || file.type === 'application/pdf')) return formError('El comprobante debe ser una foto o un PDF.');
@@ -140,7 +142,7 @@ $('reg-form').addEventListener('submit', async (e) => {
   const btn = $('btn-submit'), prog = $('progress'), progText = $('progress-text');
   btn.disabled = true; prog.classList.remove('hidden');
   try {
-    if (await dniAlreadyRegistered(dni)) return formError(DUP_MSG);
+    if (await alreadyRegistered(name, phone)) return formError(DUP_MSG);
 
     // Volver a revisar cupos justo antes de inscribir
     const spots = await remainingSpots();
@@ -168,19 +170,19 @@ $('reg-form').addEventListener('submit', async (e) => {
     }
 
     progText.textContent = 'Generando tu pase digital...';
-    const reg = { id: 'reg-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6), eventId: evt.id, code, name, dni, email, isPaid: evt.isPaid, paymentMethod: method, paymentStatus, receiptUrl, attended: false, createdAt: new Date().toISOString() };
+    const reg = { id: 'reg-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6), eventId: evt.id, code, name, phone, age, isPaid: evt.isPaid, paymentMethod: method, paymentStatus, receiptUrl, attended: false, createdAt: new Date().toISOString() };
     const { error } = await sb.from('registrations').insert([{
-      id: reg.id, event_id: reg.eventId, code: reg.code, name: reg.name, dni: reg.dni, email: reg.email,
+      id: reg.id, event_id: reg.eventId, code: reg.code, name: reg.name, phone: reg.phone, age: reg.age,
       is_paid: reg.isPaid, payment_method: reg.paymentMethod, payment_status: reg.paymentStatus,
       receipt_url: reg.receiptUrl, attended: reg.attended, created_at: reg.createdAt
     }]);
     if (error) {
       console.error(error);
-      if (String(error.message || '').includes('uq_registrations_event_dni')) return formError(DUP_MSG);
+      if (String(error.message || '').includes('uq_registrations_event_name_phone')) return formError(DUP_MSG);
       return formError('No pudimos completar tu inscripción. Inténtalo de nuevo en un momento.');
     }
 
-    myPass = { code, name, dni, isPaid: reg.isPaid, paymentMethod: method, paymentStatus };
+    myPass = { code, name, phone, age, isPaid: reg.isPaid, paymentMethod: method, paymentStatus };
     try { localStorage.setItem(passKey(), JSON.stringify(myPass)); } catch (e) {}
     try { confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } }); } catch (e) {}
     showPass(myPass);
@@ -195,7 +197,7 @@ function showPass(p) {
   $('p-event').textContent = evt.title;
   $('p-code').textContent = 'EVT-' + p.code;
   $('p-name').textContent = p.name;
-  $('p-dni').textContent = 'DNI: ' + p.dni;
+  $('p-phone').textContent = 'Cel: ' + (p.phone || p.dni || '-') + (p.age ? ' • ' + p.age + ' años' : '');
   const st = $('p-status');
   const map = !p.isPaid ? ['✓ Acceso gratuito confirmado', 'indigo'] : p.paymentStatus === 'Pagado' ? ['✓ Pago aprobado', 'emerald'] : p.paymentStatus === 'En Revisión' ? ['⏳ Comprobante en revisión', 'amber'] : ['📍 Pagar en cafetería (' + p.paymentMethod + ')', 'sky'];
   st.textContent = map[0];
@@ -208,7 +210,7 @@ function showPass(p) {
 $('btn-print').addEventListener('click', () => window.print());
 $('btn-another').addEventListener('click', () => { $('reg-form').reset(); $('proof-name').textContent = 'Máximo 10 MB. Se guarda de forma segura.'; formError(''); show('st-form'); });
 $('btn-wa').addEventListener('click', () => {
-  const t = `¡Hola! Aquí está mi pase para *${evt.title}* en Ministerio Internacional Ágape.\n\n👤 *Nombre:* ${myPass.name}\n🔑 *Código de Entrada:* EVT-${myPass.code}\n📄 *DNI:* ${myPass.dni}\n💳 *Estado:* ${myPass.paymentStatus}\n\nPresenta este código al ingresar.`;
+  const t = `¡Hola! Aquí está mi pase para *${evt.title}* en Ministerio Internacional Ágape.\n\n👤 *Nombre:* ${myPass.name}\n🔑 *Código de Entrada:* EVT-${myPass.code}\n📱 *Celular:* ${myPass.phone || myPass.dni || '-'}${myPass.isPaid ? `\n💳 *Estado:* ${myPass.paymentStatus}` : ''}\n\nPresenta este código al ingresar.`;
   window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(t), '_blank');
 });
 
@@ -225,8 +227,8 @@ $('btn-save').addEventListener('click', () => {
   if (qr) { x.fillStyle = '#fff'; x.fillRect(mid - 110, 210, 220, 220); x.drawImage(qr, mid - 95, 225, 190, 190); }
   x.fillStyle = '#34d399'; x.font = 'bold 32px monospace'; x.fillText('EVT-' + myPass.code, mid, 480);
   x.fillStyle = '#f8fafc'; x.font = 'bold 22px sans-serif'; x.fillText(myPass.name, mid, 530);
-  x.fillStyle = '#94a3b8'; x.font = '16px monospace'; x.fillText('DNI: ' + myPass.dni, mid, 565);
-  x.fillStyle = myPass.isPaid ? '#f59e0b' : '#38bdf8'; x.font = 'bold 16px sans-serif'; x.fillText('Estado: ' + myPass.paymentStatus, mid, 615);
+  x.fillStyle = '#94a3b8'; x.font = '16px monospace'; x.fillText('Cel: ' + (myPass.phone || myPass.dni || '-'), mid, 565);
+  x.fillStyle = myPass.isPaid ? '#f59e0b' : '#38bdf8'; x.font = 'bold 16px sans-serif'; x.fillText(myPass.isPaid ? 'Estado: ' + myPass.paymentStatus : 'Acceso gratuito', mid, 615);
   x.fillStyle = '#64748b'; x.font = '14px sans-serif'; x.fillText('Presenta este código en la entrada • www.agapehn.org', mid, 740);
   const a = document.createElement('a');
   a.download = 'Pase_' + myPass.name.replace(/\s+/g, '_') + '_EVT-' + myPass.code + '.png';
