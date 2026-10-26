@@ -873,6 +873,13 @@
           saveLocalData();
           if (!state.isPublicMode) renderCurrentEventDetails();
         }
+      } else if (payload.eventType === 'DELETE') {
+        const delId = payload.old && payload.old.id;
+        if (delId && state.registrations.some(r => r.id === delId)) {
+          state.registrations = state.registrations.filter(r => r.id !== delId);
+          saveLocalData();
+          if (!state.isPublicMode) renderCurrentEventDetails();
+        }
       }
     }
 
@@ -960,6 +967,8 @@
 
     // RENDERIZADO DETALLES DEL EVENTO SELECCIONADO
     function renderCurrentEventDetails() {
+      // Refresca también los contadores (n/capacidad) de la lista lateral
+      renderEventsList();
       const evt = state.events.find(e => e.id === state.currentEventId);
       if (!evt) return;
 
@@ -1548,24 +1557,50 @@ function closePassModal() {
       if (!rawCode) return;
       const cleanCode = rawCode.toUpperCase().replace('EVT-', '').trim();
       
-      const reg = state.registrations.find(r => r.code.toUpperCase() === cleanCode || (r.dni || '').replace(/[- ]/g, '') !== '' && (r.dni || '').replace(/[- ]/g, '') === cleanCode.replace(/[- ]/g, ''));
+      const matches = (r) => (r.code || '').toUpperCase() === cleanCode ||
+        ((r.dni || '').replace(/[- ]/g, '') !== '' && (r.dni || '').replace(/[- ]/g, '') === cleanCode.replace(/[- ]/g, ''));
+
+      // Solo se valida contra el evento seleccionado: un pase de otro evento no debe dar acceso aquí
+      const reg = state.registrations.find(r => r.eventId === state.currentEventId && matches(r));
+      const otherEvtReg = !reg ? state.registrations.find(matches) : null;
       const box = document.getElementById('checkin-result');
       box.classList.remove('hidden');
 
       if (!reg) {
         playBeep(false);
+        const otherEvt = otherEvtReg ? state.events.find(e => e.id === otherEvtReg.eventId) : null;
         box.className = 'rounded-xl p-5 border bg-rose-950/60 border-rose-500/50 text-rose-200 space-y-1';
-        box.innerHTML = `
+        box.innerHTML = otherEvtReg ? `
+          <div class="flex items-center gap-2 font-bold text-sm text-rose-300">
+            <i data-lucide="alert-octagon" class="w-5 h-5"></i> Pase de otro evento
+          </div>
+          <p class="text-xs text-rose-300/80">Este pase pertenece a "${esc(otherEvt ? otherEvt.title : 'otro evento')}". Selecciona ese evento en el Dashboard para validarlo.</p>
+        ` : `
           <div class="flex items-center gap-2 font-bold text-sm text-rose-300">
             <i data-lucide="alert-octagon" class="w-5 h-5"></i> Pase No Encontrado
           </div>
-          <p class="text-xs text-rose-300/80">El código "${esc(rawCode)}" no corresponde a ningún participante.</p>
+          <p class="text-xs text-rose-300/80">El código "${esc(rawCode)}" no corresponde a ningún participante de este evento.</p>
         `;
         lucide.createIcons();
         return;
       }
 
       const evt = state.events.find(e => e.id === reg.eventId);
+
+      // Pago rechazado: no se da acceso ni se marca asistencia
+      if (reg.isPaid && reg.paymentStatus === 'Rechazado') {
+        playBeep(false);
+        box.className = 'rounded-xl p-5 border bg-rose-950/60 border-rose-500/50 text-rose-200 space-y-1';
+        box.innerHTML = `
+          <div class="flex items-center gap-2 font-bold text-sm text-rose-300">
+            <i data-lucide="ban" class="w-5 h-5"></i> Acceso denegado: pago rechazado
+          </div>
+          <p class="text-xs text-rose-300/80">${esc(reg.name)} (${esc(contactLine(reg))}). Su comprobante fue rechazado; debe regularizar el pago con un administrador.</p>
+        `;
+        lucide.createIcons();
+        return;
+      }
+
       const isAlreadyCheckedIn = reg.attended;
 
       reg.attended = true;
@@ -1593,6 +1628,8 @@ function closePassModal() {
         let paymentWarning = '';
         if (reg.isPaid && (reg.paymentStatus || '').includes('Pendiente')) {
           paymentWarning = `<div class="mt-2 text-xs bg-amber-500/20 text-amber-300 border border-amber-500/30 p-2 rounded-lg font-bold">⚠️ ATENCIÓN: Tiene pago pendiente (${esc(reg.paymentMethod)}). Cobrar en Cafetería.</div>`;
+        } else if (reg.isPaid && reg.paymentStatus === 'En Revisión') {
+          paymentWarning = `<div class="mt-2 text-xs bg-amber-500/20 text-amber-300 border border-amber-500/30 p-2 rounded-lg font-bold">⚠️ ATENCIÓN: Su comprobante todavía está en revisión. Verifícalo en el Dashboard antes de dejarlo pasar.</div>`;
         }
 
         box.className = 'rounded-xl p-5 border bg-emerald-950/60 border-emerald-500/50 text-emerald-200 space-y-2';

@@ -29,6 +29,10 @@
 // Nombre de la carpeta principal en la raíz de tu Google Drive
 var ROOT_FOLDER_NAME = "Eventos - Comprobantes";
 
+// Límites de seguridad para los comprobantes que recibe el webhook
+var ALLOWED_TYPES = ["image/jpeg", "image/png", "application/pdf"];
+var MAX_BASE64_LENGTH = 14 * 1024 * 1024; // ~10 MB de archivo en base64
+
 /**
  * Manejador GET: Permite verificar en el navegador que el script está activo
  * y responde con un JSON de estado.
@@ -105,6 +109,21 @@ function doPost(e) {
           error: "No se proporcionó el contenido del archivo en base64."
         });
       }
+
+      // Validaciones: este webhook es público, así que solo se aceptan comprobantes razonables
+      if (ALLOWED_TYPES.indexOf(fileType) === -1) {
+        return createJsonResponse({
+          success: false,
+          error: "Tipo de archivo no permitido. Solo JPG, PNG o PDF."
+        });
+      }
+      if (String(fileDataBase64).length > MAX_BASE64_LENGTH) {
+        return createJsonResponse({
+          success: false,
+          error: "El archivo es demasiado grande (máximo 10 MB)."
+        });
+      }
+      fileName = String(fileName).replace(/[\\/:*?"<>|\r\n]/g, "_").substring(0, 150);
 
       // Si el base64 viene con el prefijo 'data:*/*;base64,', limpiarlo
       if (fileDataBase64.indexOf(",") > -1) {

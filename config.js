@@ -16,6 +16,5 @@ window.APP_CONFIG = {
 
   // 3. Opciones generales
   DEFAULT_CAPACITY: 100,
-  AUTO_SYNC_SUPABASE: true,
-  ADMIN_PIN: "1234"
+  AUTO_SYNC_SUPABASE: true
 };

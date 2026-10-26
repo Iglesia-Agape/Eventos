@@ -1,113 +1,78 @@
-# ⚡ EventSync - Sistema de Gestión de Eventos, Pagos & Google Drive
+# Eventos Ágape
 
-EventSync es una plataforma web completa y moderna para la administración de eventos simultáneos, registro público de asistentes, subida automática de comprobantes de pago a Google Drive y validación de accesos mediante código QR en tiempo real.
+Sistema de gestión de eventos del Ministerio Internacional Ágape: inscripción pública con pase QR, panel de administración, control de acceso por cámara y comprobantes de pago guardados en Google Drive.
 
----
-
-## 🎯 Características Principales
-
-- **Gestión Multievento:** Administra múltiples eventos activos desde un solo panel.
-- **Enlaces Públicos Independientes:** Genera URLs únicas (`?evento=evt-XXXXX`) para compartir con los asistentes.
-- **Integración con Google Drive:**
-  - Crea automáticamente la subcarpeta del evento dentro de *"Eventos - Comprobantes"*.
-  - Renombra y sube los comprobantes de pago bancario en tiempo real.
-  - Botón *"Ver en Drive"* para abrir la carpeta o el comprobante directamente.
-- **Compresión de Fotos en el Navegador:** Optimiza fotos pesadas de celulares en milisegundos antes de subirlas a Drive.
-- **Pase Digital con Código QR:** Genera un ticket único para cada participante con opciones para imprimir o compartir por WhatsApp.
-- **Escáner por Cámara Web & Control de Asistencia:** Detección de QR, tono sonoro de confirmación y advertencia de pases duplicados.
-- **Sincronización en la Nube con Supabase:** Persistencia centralizada y actualización en tiempo real (*Realtime*) en múltiples computadoras y dispositivos.
-- **Protección de Credenciales:** La configuración del Webhook y Base de Datos está centralizada en `config.js` y no se expone en la interfaz pública.
+Es una página estática (sin servidor propio): HTML + JavaScript en GitHub Pages, base de datos en **Supabase** y subida de comprobantes mediante **Google Apps Script**.
 
 ---
 
-## 💡 ¿Cómo funciona la Base de Datos? (¿Una tabla por evento?)
+## Qué hace
 
-> **Pregunta frecuente:** *¿Cada evento que creo en la app es una tabla diferente en Supabase?*
->
-> **Respuesta:** **No**, y esa es la gran ventaja del diseño relacional profesional.
->
-> En lugar de obligarte a entrar a Supabase a escribir código SQL cada vez que creas un evento, el sistema utiliza dos tablas fijas:
-> 1. `public.events`: Almacena todos los eventos (título, fecha, capacidad, precio, carpeta de Drive, etc.).
-> 2. `public.registrations`: Almacena todas las personas inscritas, vinculadas a su evento mediante `event_id`.
->
-> **Ventajas de este modelo:**
-> - **Creación 100% Automática:** Cuando creas un evento desde la página web, se guarda automáticamente en Supabase sin necesidad de crear tablas nuevas.
-> - **Cero Mantenimiento:** Una vez ejecutado el script SQL inicial, nunca más tendrás que tocar el editor SQL de Supabase.
-> - **Tiempo Real Global:** Supabase Realtime funciona automáticamente para todos los eventos presentes y futuros.
+- **Panel de administración** (`index.html`): crear y borrar eventos, ver inscritos en tiempo real, cambiar el estado de pago, marcar asistencia, exportar a CSV, generar pases QR. Requiere iniciar sesión.
+- **Inscripción pública** (`inscripcion.html?evento=ID`): cada evento tiene su propio enlace. El asistente deja nombre, celular y edad, y recibe un pase con código QR (guardar imagen, WhatsApp, imprimir).
+- **Eventos gratuitos o de pago:** los de pago muestran los canales (BAC, PayPal, POS, efectivo) y piden comprobante cuando corresponde. Las fotos se comprimen en el navegador antes de subirse.
+- **Validación en la entrada:** escáner de QR con la cámara o código manual. Avisa si el pase ya ingresó, si es de otro evento, si el pago está pendiente o en revisión, y **niega el acceso si el pago fue rechazado**.
+- **Cupos y duplicados:** el cupo máximo y el nombre + celular repetido se controlan en la base de datos.
 
----
+## Archivos
 
-## 🚀 Puesta en Marcha Rápida
+| Archivo | Para qué sirve |
+|---|---|
+| `index.html` | Panel de administración |
+| `inscripcion.html` + `inscripcion.js` | Página pública de inscripción |
+| `config.js` | URLs y claves públicas (Supabase y Apps Script) |
+| `estilos.css` | Tailwind ya compilado (ver nota abajo) |
+| `tailwind.config.js`, `entrada.css` | Archivos para volver a generar `estilos.css` |
+| `supabase_schema.sql` | Esquema completo de la base de datos y sus políticas de seguridad |
+| `google_apps_script.js` | Código del webhook que guarda comprobantes en Drive |
+| `.github/workflows/mantener-supabase-activo.yml` | Consulta Supabase lunes y jueves para que el plan gratuito no se pause |
+| `Logo.png` | Logo |
 
-### 1. Configurar Supabase (Paso Único)
-1. Entra a [supabase.com](https://supabase.com/) y abre tu proyecto.
-2. Ve a **SQL Editor**, copia todo el contenido del archivo [`supabase_schema.sql`](supabase_schema.sql) y haz clic en **Run**.
-3. Ve a **Project Settings** > **API** y copia:
-   - **Project URL**
-   - **anon public key**
+## Puesta en marcha
 
-### 2. Configurar Google Apps Script
-1. Entra a [script.google.com](https://script.google.com) y pega el código de [`google_apps_script.js`](google_apps_script.js).
-2. Haz clic en **Implementar** > **Nueva implementación** > Tipo: **Aplicación web**.
-   - **Ejecutar como:** *Yo*
-   - **Quién tiene acceso:** *Cualquier persona* (Anyone)
+### 1. Supabase
+1. Crea un proyecto en [supabase.com](https://supabase.com/).
+2. **SQL Editor:** pega todo `supabase_schema.sql` y ejecútalo.
+3. **Authentication > Users:** crea el usuario administrador (correo y contraseña).
+4. **Authentication > Sign In / Providers:** desactiva *Allow new users to sign up*.
+5. Autoriza ese correo en el SQL Editor (una sola vez):
+   ```sql
+   INSERT INTO public.admin_emails (email) VALUES ('correo-del-admin@ejemplo.com');
+   ```
+6. **Project Settings > API:** copia *Project URL* y *anon public key*.
+
+> La clave `anon` es pública por diseño (viaja en `config.js`). Lo que protege los datos son las políticas de seguridad (RLS) de `supabase_schema.sql`. **Nunca pongas la clave `service_role` en este proyecto.**
+
+### 2. Google Apps Script
+1. En [script.google.com](https://script.google.com) crea un proyecto y pega `google_apps_script.js`.
+2. **Implementar > Nueva implementación > Aplicación web**: ejecutar como *Yo*, acceso *Cualquier persona*.
 3. Copia la URL que termina en `/exec`.
+4. Cada vez que cambies el código: **Implementar > Administrar implementaciones > editar > Nueva versión**. Guardar no basta.
 
-### 3. Configurar tus Credenciales en `config.js`
-Abre el archivo [`config.js`](config.js) y pega tus credenciales:
+### 3. `config.js`
 ```javascript
 window.APP_CONFIG = {
   WEBHOOK_URL: "https://script.google.com/macros/s/.../exec",
   SUPABASE_URL: "https://tu-proyecto.supabase.co",
-  SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  SUPABASE_ANON_KEY: "eyJ..."
 };
 ```
 
----
+### 4. Publicar en GitHub Pages
+1. Sube **todos** los archivos de este repositorio (incluidos `inscripcion.js`, `estilos.css` y `Logo.png`).
+2. **Settings > Pages:** rama `main`, carpeta `/ (root)`.
+3. El panel queda en `https://TU-USUARIO.github.io/TU-REPO/` y los enlaces de inscripción salen del botón *Copiar Link Público* de cada evento.
 
-## 🌐 Subir el Proyecto a GitHub & Activar GitHub Pages
+### 5. Mantener Supabase activo (opcional, recomendado)
+El workflow necesita dos secretos en **Settings > Secrets and variables > Actions**: `SUPABASE_URL` y `SUPABASE_ANON_KEY`. Si Supabase no responde, GitHub te avisa por correo.
 
-Para que tu aplicación funcione en cualquier computadora, tablet o teléfono sin depender de tu máquina local:
+## Notas para quien mantenga el código
 
-### Opción A: Usando la terminal (Git)
-Si tienes Git instalado en tu computadora:
-```powershell
-# 1. En la carpeta del proyecto:
-git init
-git add .
-git commit -m "Versión inicial de EventSync"
-git branch -M main
-
-# 2. Conecta con tu repositorio en GitHub:
-git remote add origin https://github.com/TU_USUARIO/TU_REPOSITORIO.git
-git push -u origin main
-```
-
-*(Si aún no tienes Git instalado en Windows, puedes instalarlo abriendo PowerShell y ejecutando: `winget install --id Git.Git -e --source winget`)*.
-
-### Opción B: Subir directamente en GitHub.com
-1. Entra a [github.com](https://github.com/) y haz clic en **New repository** (Ejemplo: `eventsync`).
-2. Haz clic en **"uploading an existing file"**.
-3. Arrastra los archivos:
-   - `index.html`
-   - `config.js`
-   - `google_apps_script.js`
-   - `supabase_schema.sql`
-   - `.gitignore`
-   - `README.md`
-4. Haz clic en **Commit changes**.
-
----
-
-## 🌍 Activar GitHub Pages (Tu App Gratis en la Web)
-
-Una vez subido a GitHub:
-1. En tu repositorio, entra a la pestaña **Settings** (Configuración del repositorio).
-2. En el menú izquierdo, busca la sección **Pages**.
-3. En **Build and deployment** > **Branch**:
-   - Selecciona **main** y carpeta **/ (root)**.
-   - Haz clic en **Save**.
-4. En 1 minuto tendrás tu enlace oficial disponible:
-   `https://tu-usuario.github.io/tu-repositorio/`
-
-¡Cualquier persona con este enlace podrá ingresar, ver los eventos, inscribirse y validar pases desde cualquier lugar del mundo!
+- **`estilos.css` es Tailwind compilado.** Si agregas clases nuevas en el HTML o en `inscripcion.js`, no tendrán estilo hasta regenerarlo:
+  ```bash
+  npx tailwindcss@3 -i entrada.css -o estilos.css --minify
+  ```
+- **Content Security Policy:** `index.html` e `inscripcion.html` limitan de dónde se cargan scripts y a qué servidores se conectan. Si agregas una librería o servicio externo, hay que añadirlo en la etiqueta `<meta http-equiv="Content-Security-Policy">`.
+- **No vuelvas a poner un `DROP PUBLICATION supabase_realtime`**: puede romper el tiempo real de otras tablas.
+- Las inscripciones antiguas conservan cédula y correo (se muestran si existen). Las nuevas piden solo nombre, celular y edad.
+- Los comprobantes quedan en Drive como "cualquiera con el enlace puede ver". Es lo que permite abrirlos desde el panel con cualquier cuenta; si prefieres que sean privados, solo la cuenta dueña del Drive podrá verlos.
