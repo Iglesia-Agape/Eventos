@@ -32,10 +32,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   sb = window.supabase.createClient(SB_URL, SB_KEY);
 
   // Solo se descarga ESTE evento (nunca la lista de inscritos)
-  const { data, error } = await sb.from('events')
-    .select('id,title,date,capacity,is_paid,price,bank_info,description,drive_folder_id').eq('id', id).maybeSingle();
+  const COLS = 'id,title,date,capacity,is_paid,price,bank_info,description,drive_folder_id';
+  let { data, error } = await sb.from('events').select(COLS + ',image_url').eq('id', id).maybeSingle();
+  if (error) ({ data, error } = await sb.from('events').select(COLS).eq('id', id).maybeSingle());   // por si la columna de imagen aún no existe
   if (error || !data) return showMsg('🔍', 'Evento no encontrado', 'El enlace es inválido o el evento ya no está disponible.');
-  evt = { id: data.id, title: data.title, date: data.date, capacity: data.capacity, isPaid: data.is_paid, price: parseFloat(data.price) || 0, description: data.description, driveFolderId: data.drive_folder_id };
+  evt = { id: data.id, title: data.title, date: data.date, capacity: data.capacity, isPaid: data.is_paid, price: parseFloat(data.price) || 0, description: data.description, driveFolderId: data.drive_folder_id, imageUrl: data.image_url || '' };
 
   const spots = await remainingSpots();
   if (spots !== null && spots <= 0) return showMsg('😔', 'Cupos agotados', 'Este evento alcanzó su capacidad máxima. Gracias por tu interés.');
@@ -54,8 +55,13 @@ async function remainingSpots() {
   } catch (e) { return null; }
 }
 
+// Solo se muestran imágenes alojadas en el almacenamiento de Supabase (https)
+function isSafeImage(u) { try { const x = new URL(u); return x.protocol === 'https:' && x.hostname.endsWith('.supabase.co'); } catch (e) { return false; } }
+$('ev-image').addEventListener('error', () => $('ev-image').classList.add('hidden'));
+
 function renderEvent(spots) {
   $('ev-title').textContent = evt.title;
+  if (isSafeImage(evt.imageUrl)) { $('ev-image').src = evt.imageUrl; $('ev-image').classList.remove('hidden'); } else { $('ev-image').classList.add('hidden'); }
   $('ev-desc').textContent = evt.description || 'Te esperamos para vivir este evento juntos.';
   $('ev-date').textContent = evt.date ? fmtDate(evt.date) : 'Fecha por confirmar';
   const p = $('ev-price');

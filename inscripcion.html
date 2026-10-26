@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- Seguridad (CSP): solo se ejecuta código de este sitio y de las librerías listadas. Si agregas otro servicio o librería externa, hay que añadirlo aquí. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://script.google.com https://script.googleusercontent.com; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://script.google.com https://script.googleusercontent.com; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'self'">
 <link rel="icon" type="image/png" href="Logo.png">
 <meta name="robots" content="noindex">
 <title>Inscripción | Ministerio Internacional Ágape</title>
@@ -51,6 +51,7 @@
 
   <!-- Formulario -->
   <div id="st-form" class="hidden space-y-5">
+    <img id="ev-image" alt="" width="1200" height="675" fetchpriority="high" decoding="async" class="hidden w-full aspect-[16/9] object-cover rounded-2xl border border-slate-800">
     <div class="text-center space-y-2">
       <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">Inscripción oficial</span>
       <h1 id="ev-title" class="text-2xl sm:text-3xl font-extrabold text-white leading-tight"></h1>
