@@ -141,6 +141,14 @@
         <!-- Event Details & Registrants -->
         <div class="lg:col-span-3 space-y-6">
           
+          <!-- Estado vacío: cuando no hay ningún evento -->
+          <div id="event-empty-state" class="hidden bg-slate-900 border border-dashed border-slate-800 rounded-2xl p-6 py-8 text-center space-y-3">
+            <i data-lucide="calendar-x" class="w-10 h-10 text-slate-600 mx-auto"></i>
+            <p class="text-sm font-semibold text-slate-300">No hay ningún evento</p>
+            <p class="text-xs text-slate-500">Crea un evento nuevo para empezar a recibir inscripciones.</p>
+            <button onclick="switchTab('create')" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg transition">Crear evento</button>
+          </div>
+
           <!-- Event Header Card -->
           <div id="event-header" class="bg-slate-900 border border-slate-800 rounded-2xl p-6 relative overflow-hidden shadow-xl">
             <div id="event-image-wrap" class="hidden mb-5 relative z-10">
@@ -222,7 +230,7 @@
           </div>
 
           <!-- Registrants Table Card -->
-          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+          <div id="event-registrants" class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h3 class="text-base font-semibold text-white flex items-center gap-2">
@@ -753,6 +761,18 @@
     }
 
     async function startAdminSession() {
+      // Una cuenta que inició sesión pero NO está en admin_emails no debe ver el panel
+      try {
+        const { data: isAdm, error: admErr } = await supabaseClient.rpc('is_admin');
+        if (admErr || isAdm !== true) {
+          await supabaseClient.auth.signOut();
+          showAuthGate(admErr ? 'No se pudo verificar tu cuenta. Intenta de nuevo.' : 'Esta cuenta no tiene permisos de administrador.');
+          return false;
+        }
+      } catch (e) {
+        showAuthGate('No se pudo verificar tu cuenta: ' + e.message);
+        return false;
+      }
       document.getElementById('status-dot').className = 'w-2 h-2 rounded-full bg-emerald-400 inline-block animate-pulse';
       document.getElementById('status-text').innerText = 'Supabase Conectado';
       document.getElementById('badge-connection').classList.remove('hidden');
@@ -773,6 +793,7 @@
           .subscribe();
       }
       enterAdminPanel();
+      return true;
     }
 
     async function handleAdminLogin(e) {
@@ -788,8 +809,7 @@
           showAuthGate('Correo o contraseña incorrectos.');
         } else {
           document.getElementById('login-password').value = '';
-          await startAdminSession();
-          switchTab('dashboard');
+          if (await startAdminSession()) switchTab('dashboard');
         }
       } catch (err) {
         showAuthGate('No se pudo iniciar sesión: ' + err.message);
@@ -918,7 +938,10 @@
       if (!supabaseClient) return;
       try {
         const { data: dbEvents, error: errEvt } = await supabaseClient.from('events').select('*').order('created_at', { ascending: false });
-        if (!errEvt && dbEvents && dbEvents.length > 0) {
+        if (errEvt) {
+          showToast('No se pudieron cargar los eventos: ' + errEvt.message, 'error');
+        } else if (dbEvents) {
+          // La nube manda: si ya no hay eventos allá, tampoco se muestran aquí
           state.events = dbEvents.map(e => ({
             id: e.id,
             title: e.title,
@@ -935,32 +958,18 @@
             autoClose: !!e.auto_close,
             registrationDeadline: e.registration_deadline || ''
           }));
-        } else if (!errEvt && dbEvents && dbEvents.length === 0 && state.events.length > 0) {
-          // Si Supabase está vacía, subir el evento demo local automáticamente
-          for (const ev of state.events) {
-            await supabaseClient.from('events').upsert([{
-              id: ev.id,
-              title: ev.title,
-              date: ev.date,
-              capacity: ev.capacity,
-              is_paid: ev.isPaid,
-              price: ev.price,
-              bank_info: ev.bankInfo,
-              description: ev.description,
-              drive_folder_url: ev.driveFolderUrl,
-              drive_folder_id: ev.driveFolderId
-            }]);
-          }
         }
 
         const { data: dbRegs, error: errReg } = await supabaseClient.from('registrations').select('*').order('created_at', { ascending: false });
-        if (!errReg && dbRegs) {
+        if (errReg) {
+          showToast('No se pudieron cargar las inscripciones: ' + errReg.message, 'error');
+        } else if (dbRegs) {
           state.registrations = dbRegs.map(mapSupabaseToLocal);
         }
 
         saveLocalData();
-        if (!state.currentEventId && state.events.length > 0) {
-          state.currentEventId = state.events[0].id;
+        if (!state.events.some(e => e.id === state.currentEventId)) {
+          state.currentEventId = state.events[0]?.id || null;
         }
         if (!state.isPublicMode) {
           renderEventsList();
@@ -1140,8 +1149,18 @@
     function renderCurrentEventDetails() {
       // Refresca también los contadores (n/capacidad) de la lista lateral
       renderEventsList();
-      const evt = state.events.find(e => e.id === state.currentEventId);
-      if (!evt) return;
+      let evt = state.events.find(e => e.id === state.currentEventId);
+      // Si el evento seleccionado ya no existe (p. ej. se borró), pasar al primero que quede
+      if (!evt && state.events.length > 0) {
+        state.currentEventId = state.events[0].id;
+        evt = state.events[0];
+        renderEventsList();
+      }
+      // Sin eventos: mostrar el estado vacío y ocultar el detalle del evento borrado
+      document.getElementById('event-header')?.classList.toggle('hidden', !evt);
+      document.getElementById('event-registrants')?.classList.toggle('hidden', !evt);
+      document.getElementById('event-empty-state')?.classList.toggle('hidden', !!evt);
+      if (!evt) { lucide.createIcons(); return; }
 
       document.getElementById('event-title').innerText = evt.title;
       const evImg = document.getElementById('event-image');
@@ -1179,7 +1198,7 @@
       // Botón Enlace Carpeta Drive
       const btnOpenDrive = document.getElementById('btn-open-drive');
       if (evt.driveFolderUrl) {
-        btnOpenDrive.href = evt.driveFolderUrl;
+        btnOpenDrive.href = safeUrl(evt.driveFolderUrl);
         btnOpenDrive.classList.remove('hidden');
       } else {
         btnOpenDrive.classList.add('hidden');
@@ -1367,45 +1386,55 @@
     function toggleAttendance(regId) {
       const reg = state.registrations.find(r => r.id === regId);
       if (!reg) return;
+      const prev = { attended: reg.attended, paymentStatus: reg.paymentStatus };
       reg.attended = !reg.attended;
       saveLocalData();
       renderCurrentEventDetails();
       showToast(`${reg.name}: Asistencia cambiada a ${reg.attended ? 'LLEGÓ' : 'PENDIENTE'}.`, 'info');
-      syncUpdateToSupabase(reg);
+      syncUpdateToSupabase(reg, prev);
     }
 
     function updatePaymentStatus(regId, newStatus) {
       const reg = state.registrations.find(r => r.id === regId);
       if (!reg) return;
+      const prev = { attended: reg.attended, paymentStatus: reg.paymentStatus };
       reg.paymentStatus = newStatus;
       saveLocalData();
       renderCurrentEventDetails();
       showToast(`Estado de pago de ${reg.name} actualizado a: ${newStatus}`, 'success');
-      syncUpdateToSupabase(reg);
+      syncUpdateToSupabase(reg, prev);
     }
 
-    function deleteRegistration(regId) {
+    async function deleteRegistration(regId) {
       if (!confirm('¿Estás seguro de eliminar esta inscripción?')) return;
+      if (supabaseClient) {
+        const { data, error } = await supabaseClient.from('registrations').delete().eq('id', regId).select('id');
+        if (error) return showToast('No se pudo eliminar la inscripción: ' + error.message, 'error');
+        if (!data || data.length === 0) return showToast('No se pudo eliminar la inscripción (sin permiso). Cierra sesión y vuelve a entrar.', 'error');
+      }
       state.registrations = state.registrations.filter(r => r.id !== regId);
       saveLocalData();
       renderCurrentEventDetails();
       showToast('Inscripción eliminada.', 'info');
-
-      if (supabaseClient) {
-        supabaseClient.from('registrations').delete().eq('id', regId).then(sbReport('No se pudo eliminar la inscripción'));
-      }
     }
 
-    function syncUpdateToSupabase(reg) {
-      if (supabaseClient) {
-        supabaseClient.from('registrations').update({
-          attended: reg.attended,
-          payment_status: reg.paymentStatus
-        }).eq('id', reg.id).then(sbReport('No se pudo guardar el cambio'));
+    // Guarda asistencia/pago en la nube. Si la nube lo rechaza, se devuelve el valor anterior en pantalla.
+    async function syncUpdateToSupabase(reg, prev) {
+      if (!supabaseClient) return true;
+      const { data, error } = await supabaseClient.from('registrations').update({
+        attended: reg.attended,
+        payment_status: reg.paymentStatus
+      }).eq('id', reg.id).select('id');
+      if (error || !data || data.length === 0) {
+        console.error('No se pudo guardar el cambio', error);
+        showToast('No se pudo guardar el cambio' + (error ? ': ' + error.message : ' (sin permiso). Cierra sesión y vuelve a entrar.'), 'error');
+        if (prev) { Object.assign(reg, prev); saveLocalData(); renderCurrentEventDetails(); }
+        return false;
       }
+      return true;
     }
 
-// ENLACES PÚBLICOS (la inscripción vive ahora en su propia página: inscripcion.html)
+    // ENLACES PÚBLICOS (la inscripción vive ahora en su propia página: inscripcion.html)
     function getPublicEventLink() {
       if (!state.currentEventId) return null;
       const url = new URL('inscripcion.html', window.location.href);
@@ -2168,7 +2197,7 @@ function closePassModal() {
       let driveFolderId = '';
 
       // Crear subcarpeta en Google Drive automáticamente
-      if (state.webhookUrl) {
+      if (state.webhookUrl && isPaid) {
         const result = await postToGoogleScript({
           action: 'create_folder',
           eventName: title
@@ -2202,13 +2231,9 @@ function closePassModal() {
         catch (err) { imageWarning = ' La imagen no se pudo subir: ' + (err.message || err); }
       }
 
-      state.events.unshift(newEvent);
-      state.currentEventId = newEvent.id;
-      saveLocalData();
-
-      // Inserción en Supabase
+      // Inserción en Supabase: el evento solo aparece en pantalla si la nube lo guardó de verdad
       if (supabaseClient) {
-        supabaseClient.from('events').insert([{
+        const { error: insErr } = await supabaseClient.from('events').insert([{
           id: newEvent.id,
           title: newEvent.title,
           date: newEvent.date,
@@ -2222,8 +2247,18 @@ function closePassModal() {
           ...(newEvent.imageUrl ? { image_url: newEvent.imageUrl } : {}),
           ...(newEvent.autoClose ? { auto_close: true } : {}),
           ...(newEvent.registrationDeadline ? { registration_deadline: newEvent.registrationDeadline } : {})
-        }]).then(sbReport('No se pudo guardar el evento en Supabase'));
+        }]);
+        if (insErr) {
+          if (newEvent.imageUrl) removeStoredImage(newEvent.imageUrl);
+          btn.disabled = false;
+          btn.innerHTML = `<i data-lucide="check" class="w-4 h-4"></i> Crear Evento`;
+          lucide.createIcons();
+          return showToast('No se pudo guardar el evento: ' + insErr.message, 'error');
+        }
       }
+      if (!state.events.some(e => e.id === newEvent.id)) state.events.unshift(newEvent);   // el tiempo real puede llegar primero
+      state.currentEventId = newEvent.id;
+      saveLocalData();
 
       btn.disabled = false;
       btn.innerHTML = `<i data-lucide="check" class="w-4 h-4"></i> Crear Evento`;
@@ -2273,23 +2308,26 @@ function closePassModal() {
       }
     }
 
-    function deleteCurrentEvent() {
+    async function deleteCurrentEvent() {
       const evt = state.events.find(e => e.id === state.currentEventId);
       if (!evt) return;
-      if (confirm(`¿Estás seguro de eliminar el evento "${evt.title}" y todos sus registros asociados?`)) {
-        state.events = state.events.filter(e => e.id !== state.currentEventId);
-        state.registrations = state.registrations.filter(r => r.eventId !== state.currentEventId);
-        state.currentEventId = state.events[0]?.id || null;
-        saveLocalData();
-        renderEventsList();
-        renderCurrentEventDetails();
+      if (!confirm(`¿Estás seguro de eliminar el evento "${evt.title}" y todos sus registros asociados?`)) return;
 
-        if (supabaseClient) {
-          supabaseClient.from('events').delete().eq('id', evt.id).then(sbReport('No se pudo eliminar el evento'));
-          if (evt.imageUrl) removeStoredImage(evt.imageUrl);
-        }
-        showToast('Evento eliminado.', 'info');
+      // Primero se borra en la nube: si falla (sin permiso, sin internet), el evento NO desaparece de la pantalla
+      if (supabaseClient) {
+        const { data, error } = await supabaseClient.from('events').delete().eq('id', evt.id).select('id');
+        if (error) return showToast('No se pudo eliminar el evento: ' + error.message, 'error');
+        if (!data || data.length === 0) return showToast('No se pudo eliminar el evento (sin permiso). Cierra sesión, vuelve a entrar e inténtalo de nuevo.', 'error');
+        if (evt.imageUrl) removeStoredImage(evt.imageUrl);   // la imagen se borra solo si el evento sí se borró
       }
+
+      state.events = state.events.filter(e => e.id !== evt.id);
+      state.registrations = state.registrations.filter(r => r.eventId !== evt.id);
+      state.currentEventId = state.events[0]?.id || null;
+      saveLocalData();
+      renderEventsList();
+      renderCurrentEventDetails();
+      showToast('Evento eliminado.', 'info');
     }
 
     // VALIDADOR CHECK-IN (QR Y MANUAL)
@@ -2302,6 +2340,7 @@ function closePassModal() {
 
     function processCheckinCode(rawCode) {
       if (!rawCode) return;
+      if (!state.currentEventId) return showToast('Primero selecciona un evento en el Dashboard para validar pases.', 'warning');
       const cleanCode = rawCode.toUpperCase().replace('EVT-', '').trim();
       
       const matches = (r) => (r.code || '').toUpperCase() === cleanCode ||
@@ -2349,11 +2388,12 @@ function closePassModal() {
       }
 
       const isAlreadyCheckedIn = reg.attended;
+      const prevCheckin = { attended: reg.attended, paymentStatus: reg.paymentStatus };
 
       reg.attended = true;
       saveLocalData();
       renderCurrentEventDetails();
-      syncUpdateToSupabase(reg);
+      syncUpdateToSupabase(reg, prevCheckin);
 
       const timeStr = new Date().toLocaleTimeString('es-ES', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
       state.recentCheckins.unshift({ name: reg.name, code: reg.code, time: timeStr });
@@ -2515,7 +2555,7 @@ function closePassModal() {
         box.innerText = '✓ Google Apps Script y Google Drive respondiendo correctamente.';
       } else {
         box.className = 'text-xs p-3 rounded-xl border bg-rose-950/60 border-rose-500/40 text-rose-300';
-        box.innerHTML = '✗ Fallo al contactar Webhook: ' + (res?.error || 'Error de red');
+        box.innerText = '✗ Fallo al contactar Webhook: ' + (res?.error || 'Error de red');
       }
     }
 
