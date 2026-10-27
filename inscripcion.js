@@ -51,6 +51,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   evt = { id: data.id, title: data.title, date: data.date, capacity: data.capacity, isPaid: data.is_paid, price: parseFloat(data.price) || 0, description: data.description, driveFolderId: data.drive_folder_id, imageUrl: data.image_url || '', registrationOpen: data.registration_open !== false, autoClose: !!data.auto_close, registrationDeadline: data.registration_deadline || '' };
 
   myPasses = loadPasses(); myPass = myPasses.length ? myPasses[myPasses.length - 1] : null;
+  // La imagen del evento empieza a descargarse YA, mientras se consultan los cupos (antes esperaba a que terminara esa consulta)
+  if (isSafeImage(evt.imageUrl)) $('ev-image').src = evt.imageUrl;
   const spots = await remainingSpots();
   const closed = isClosedNow();
   const full = spots !== null && spots <= 0;
