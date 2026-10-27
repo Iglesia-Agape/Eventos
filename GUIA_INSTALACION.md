@@ -49,6 +49,15 @@ Usa un evento de prueba y bórralo al terminar.
 4. **Alta en la puerta.** Con el evento cerrado, pulsa *Inscribir persona* en el panel: registra a alguien sin celular ni edad. Debe aparecer en la tabla y mostrar su pase.
 5. **Corregir un dato.** En la fila de esa persona pulsa el lápiz, cambia el nombre y guarda: se actualiza sin crear otra inscripción.
 
+## 2.c Probar varios pases y el QR del evento
+
+No requiere cambios en Supabase: basta con subir `index.html`, `inscripcion.js`, `inscripcion.html` y `estilos.css`.
+
+1. **Varios pases.** Abre el enlace público desde un celular e inscribe a una persona; pulsa *Inscribir a otra persona* y registra una segunda y una tercera. Arriba del pase aparecen sus nombres: toca uno para ver su pase. Cierra el navegador, vuelve a abrir el enlace y pulsa *Ya inscribiste a 3 personas: ver mis pases*.
+   - Los pases se guardan en el navegador de ese dispositivo. Si se borran los datos del navegador, o se abre el enlace en otro teléfono, no aparecen (siguen estando en el panel de administración).
+2. **QR del evento.** En el panel, abre un evento y pulsa *QR del evento*. Descarga *con título* y *solo el QR*, y escanéalos con la cámara de un celular: deben abrir la inscripción de ese evento. Hazlo con el panel abierto desde la dirección oficial (no desde tu computadora), o el QR apuntará a tu computadora; el panel avisa si es así.
+3. Cada evento tiene su propio QR: comprueba con dos eventos que cada uno abre su propia inscripción.
+
 ## 3. Si algo falla
 
 | Síntoma | Qué revisar |

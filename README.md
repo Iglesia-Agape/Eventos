@@ -9,7 +9,8 @@ Es una página estática (sin servidor propio): HTML + JavaScript en GitHub Page
 ## Qué hace
 
 - **Panel de administración** (`index.html`): crear y borrar eventos, ver inscritos en tiempo real, cambiar el estado de pago, marcar asistencia, exportar a CSV, generar pases QR. Requiere iniciar sesión.
-- **Inscripción pública** (`inscripcion.html?evento=ID`): cada evento tiene su propio enlace. El asistente deja nombre, celular y edad, y recibe un pase con código QR (guardar imagen, WhatsApp, imprimir).
+- **Inscripción pública** (`inscripcion.html?evento=ID`): cada evento tiene su propio enlace. El asistente deja nombre, celular y edad, y recibe un pase con código QR (guardar imagen, WhatsApp, imprimir). Quien inscribe a varias personas desde el mismo dispositivo ve todos sus pases y elige cuál mostrar (se guardan en ese navegador).
+- **QR del evento:** el botón *QR del evento* del panel genera un código QR que lleva directo a la inscripción de ese evento. Se descarga como imagen con título (para afiche o redes) o solo el QR (para insertarlo en un diseño).
 - **Eventos gratuitos o de pago:** los de pago muestran los canales (BAC, PayPal, POS, efectivo) y piden comprobante cuando corresponde. Las fotos se comprimen en el navegador antes de subirse.
 - **Validación en la entrada:** escáner de QR con la cámara o código manual. Avisa si el pase ya ingresó, si es de otro evento, si el pago está pendiente o en revisión, y **niega el acceso si el pago fue rechazado**.
 - **Cerrar inscripciones:** cada evento tiene un interruptor manual (abierto/cerrado) y, opcionalmente, una **fecha límite de inscripción** (las inscripciones se cierran al terminar ese día, p. ej. una semana antes) y/o cierre automático al comenzar el evento. Ambas son opcionales. El panel y la página pública muestran cuántos días faltan para el cierre. Se aplica en la base de datos, no solo en pantalla. Quien ya se inscribió sigue viendo su pase.

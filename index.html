@@ -169,6 +169,10 @@
                   <i data-lucide="link" class="w-3.5 h-3.5"></i>
                   Copiar Link Público
                 </button>
+                <button onclick="openEventQrModal()" title="Código QR del enlace de inscripción, para imprimir o compartir" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-lg border border-slate-700 flex items-center gap-1.5 transition">
+                  <i data-lucide="qr-code" class="w-3.5 h-3.5 text-indigo-400"></i>
+                  QR del evento
+                </button>
                 <button onclick="openPublicViewFromAdmin()" title="Abrir la vista de asistentes en nueva pestaña" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-lg border border-slate-700 flex items-center gap-1.5 transition">
                   <i data-lucide="external-link" class="w-3.5 h-3.5 text-indigo-400"></i>
                   Ver como Asistente
@@ -443,6 +447,37 @@
   <!-- ========================================== -->
   <!-- MODAL: PASE DIGITAL DE ACCESO (QR TICKET)  -->
   <!-- ========================================== -->
+  <!-- Modal: QR del enlace de inscripción del evento -->
+  <div id="modal-event-qr" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden" onclick="if(event.target===this)closeEventQrModal()">
+    <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-sm w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl relative text-center space-y-4">
+      <button onclick="closeEventQrModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-xl hover:bg-slate-800 transition" aria-label="Cerrar">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+      <div class="pr-8">
+        <p class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">QR de inscripción</p>
+        <h3 id="eqr-title" class="text-sm font-bold text-white tracking-tight mt-0.5"></h3>
+        <p id="eqr-date" class="text-xs text-slate-400 mt-0.5"></p>
+      </div>
+      <div class="bg-white p-3.5 rounded-2xl inline-block mx-auto shadow-xl"><div id="eqr-canvas" class="flex justify-center"></div></div>
+      <p class="text-[11px] text-slate-400">Quien lo escanee llega directo a la inscripción de este evento.</p>
+      <p id="eqr-link" class="text-[10px] font-mono text-slate-500 break-all"></p>
+      <p id="eqr-warn" class="hidden text-[11px] text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">Estás en modo local: este QR apunta a tu computadora. Ábrelo desde la dirección oficial del panel para generar el QR definitivo.</p>
+      <div class="flex flex-col gap-2 pt-1">
+        <div class="flex gap-2">
+          <button onclick="downloadEventQr('poster')" class="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition shadow-lg shadow-indigo-600/20">
+            <i data-lucide="download" class="w-4 h-4"></i> Descargar con título
+          </button>
+          <button onclick="downloadEventQr('plain')" class="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl border border-slate-700 flex items-center justify-center gap-1.5 transition">
+            <i data-lucide="qr-code" class="w-4 h-4"></i> Solo el QR
+          </button>
+        </div>
+        <button onclick="copyPublicEventLink()" class="py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-xl transition flex items-center justify-center gap-1.5">
+          <i data-lucide="link" class="w-3.5 h-3.5"></i> Copiar enlace
+        </button>
+      </div>
+    </div>
+  </div>
+
   <div id="modal-pass" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
     <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-sm w-full p-6 shadow-2xl relative text-center space-y-4">
       <button onclick="closePassModal()" class="no-print absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-xl hover:bg-slate-800 transition">
@@ -1378,6 +1413,83 @@
       url.hash = '';
       url.searchParams.set('evento', state.currentEventId);
       return url.toString();
+    }
+
+    // ---- QR del enlace de inscripción del evento ----
+    // Genera un QR nítido: el tamaño es múltiplo exacto del número de módulos para que no se desenfoque.
+    function makeQrCanvas(text, targetPx) {
+      const probe = document.createElement('div');
+      const q0 = new QRCode(probe, { text, width: 128, height: 128, correctLevel: QRCode.CorrectLevel.M });
+      const n = (q0._oQRCode && q0._oQRCode.getModuleCount) ? q0._oQRCode.getModuleCount() : 0;
+      const size = n ? Math.floor(targetPx / n) * n : targetPx;
+      const box = document.createElement('div');
+      new QRCode(box, { text, width: size, height: size, colorDark: '#000000', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
+      const c = box.querySelector('canvas');
+      return c && c.width ? c : null;
+    }
+    function eventSlug(t) {
+      return String(t || 'evento').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40) || 'evento';
+    }
+    function openEventQrModal() {
+      const evt = state.events.find(e => e.id === state.currentEventId);
+      const link = getPublicEventLink();
+      if (!evt || !link) return showToast('Primero selecciona o crea un evento.', 'warning');
+      document.getElementById('eqr-title').textContent = evt.title;
+      const d = new Date(evt.date);
+      document.getElementById('eqr-date').textContent = isNaN(d) ? '' : d.toLocaleString('es-HN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+      document.getElementById('eqr-link').textContent = link;
+      document.getElementById('eqr-warn').classList.toggle('hidden', !/^(localhost|127\.|\[?::1)/.test(location.hostname) && location.protocol !== 'file:');
+      const box = document.getElementById('eqr-canvas');
+      box.innerHTML = '';
+      new QRCode(box, { text: link, width: 220, height: 220, colorDark: '#000000', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
+      document.getElementById('modal-event-qr').classList.remove('hidden');
+      lucide.createIcons();
+    }
+    function closeEventQrModal() { document.getElementById('modal-event-qr').classList.add('hidden'); }
+
+    function downloadEventQr(kind) {
+      const evt = state.events.find(e => e.id === state.currentEventId);
+      const link = getPublicEventLink();
+      if (!evt || !link) return;
+      const qr = makeQrCanvas(link, kind === 'poster' ? 480 : 880);
+      if (!qr) return showToast('No se pudo generar el QR. Recarga la página e inténtalo de nuevo.', 'error');
+      let c, x;
+      if (kind === 'plain') {
+        c = document.createElement('canvas'); c.width = c.height = qr.width + 120;   // margen blanco para que cualquier lector lo detecte
+        x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height);
+        x.imageSmoothingEnabled = false; x.drawImage(qr, 60, 60);
+      } else {
+        c = document.createElement('canvas'); c.width = 800; c.height = 1100;
+        x = c.getContext('2d');
+        const mid = 400;
+        x.fillStyle = '#0f172a'; x.fillRect(0, 0, 800, 1100);
+        x.fillStyle = '#6366f1'; x.fillRect(0, 0, 800, 130);
+        x.textAlign = 'center'; x.fillStyle = '#fff'; x.font = 'bold 30px sans-serif'; x.fillText('MINISTERIO INTERNACIONAL ÁGAPE', mid, 62);
+        x.fillStyle = '#e0e7ff'; x.font = '20px sans-serif'; x.fillText('INSCRIPCIÓN AL EVENTO', mid, 100);
+        // Título en hasta 2 líneas
+        x.fillStyle = '#fff'; x.font = 'bold 40px sans-serif';
+        const words = String(evt.title).split(/\s+/), lines = [''];
+        words.forEach(w => { const t = (lines[lines.length - 1] + ' ' + w).trim(); if (x.measureText(t).width > 680 && lines.length < 2) lines.push(w); else lines[lines.length - 1] = t; });
+        let l2 = lines.map(s => { while (x.measureText(s).width > 700 && s.length > 3) s = s.slice(0, -2); return s; });
+        l2.forEach((s, i) => x.fillText(s, mid, 215 + i * 50));
+        const d = new Date(evt.date);
+        const dateTxt = isNaN(d) ? '' : d.toLocaleString('es-HN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+        x.fillStyle = '#94a3b8'; x.font = '22px sans-serif'; x.fillText(dateTxt, mid, 215 + (l2.length - 1) * 50 + 45);
+        // Tarjeta blanca con el QR
+        const top = 330, pad = 40, card = qr.width + pad * 2, left = mid - card / 2;
+        x.fillStyle = '#fff'; x.beginPath(); x.roundRect ? x.roundRect(left, top, card, card, 24) : x.rect(left, top, card, card); x.fill();
+        x.imageSmoothingEnabled = false; x.drawImage(qr, left + pad, top + pad);
+        x.imageSmoothingEnabled = true;
+        x.fillStyle = '#34d399'; x.font = 'bold 38px sans-serif'; x.fillText('Escanea para inscribirte', mid, top + card + 70);
+        x.fillStyle = '#64748b'; x.font = '15px monospace';
+        for (let i = 0, y = top + card + 115; i < link.length && i < 150; i += 58, y += 22) x.fillText(link.slice(i, i + 58), mid, y);
+        x.fillStyle = '#64748b'; x.font = '18px sans-serif'; x.fillText('www.agapehn.org', mid, 1060);
+      }
+      const a = document.createElement('a');
+      a.download = (kind === 'poster' ? 'QR_inscripcion_' : 'QR_solo_') + eventSlug(evt.title) + '.png';
+      a.href = c.toDataURL('image/png');
+      document.body.appendChild(a); a.click(); a.remove();
+      showToast('QR descargado.', 'success');
     }
 
     function copyPublicEventLink() {

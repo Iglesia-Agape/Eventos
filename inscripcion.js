@@ -15,14 +15,22 @@ const SB_KEY = (cfg.SUPABASE_ANON_KEY || '').trim();
 const MAX_FILE = 10 * 1024 * 1024;
 
 const $ = (id) => document.getElementById(id);
-let sb = null, evt = null, myPass = null;
+let sb = null, evt = null, myPass = null, myPasses = [];
 
 function show(name) { ['st-loading', 'st-msg', 'st-form', 'st-pass'].forEach(n => $(n).classList.toggle('hidden', n !== name)); window.scrollTo(0, 0); }
 function showMsg(icon, title, text) { $('msg-icon').textContent = icon; $('msg-title').textContent = title; $('msg-text').textContent = text; show('st-msg'); }
 function fmtDate(d) { const x = new Date(d); return isNaN(x) ? d : x.toLocaleDateString('es-ES', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }); }
 function newCode() { const a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', r = new Uint8Array(6); crypto.getRandomValues(r); return Array.from(r, v => a[v % a.length]).join(''); }
 function formError(msg) { const e = $('form-error'); e.textContent = msg || ''; e.classList.toggle('hidden', !msg); }
-const passKey = () => 'eventsync_mypass_' + evt.id;
+const passKey = () => 'eventsync_mypass_' + evt.id;          // formato anterior (un solo pase)
+const passesKey = () => 'eventsync_mypasses_' + evt.id;      // lista de pases inscritos desde este dispositivo
+function loadPasses() {
+  let list = [];
+  try { const a = JSON.parse(localStorage.getItem(passesKey())); if (Array.isArray(a)) list = a.filter(x => x && x.code && x.name); } catch (e) {}
+  try { const old = JSON.parse(localStorage.getItem(passKey())); if (old && old.code && !list.some(x => x.code === old.code)) list.unshift(old); } catch (e) {}
+  return list;
+}
+function savePasses() { try { localStorage.setItem(passesKey(), JSON.stringify(myPasses.slice(-30))); } catch (e) {} }
 
 // ---- Inicio ----
 document.addEventListener('DOMContentLoaded', async () => {
@@ -42,7 +50,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (error || !data) return showMsg('🔍', 'Evento no encontrado', 'El enlace es inválido o el evento ya no está disponible.');
   evt = { id: data.id, title: data.title, date: data.date, capacity: data.capacity, isPaid: data.is_paid, price: parseFloat(data.price) || 0, description: data.description, driveFolderId: data.drive_folder_id, imageUrl: data.image_url || '', registrationOpen: data.registration_open !== false, autoClose: !!data.auto_close, registrationDeadline: data.registration_deadline || '' };
 
-  try { myPass = JSON.parse(localStorage.getItem(passKey())); } catch (e) { myPass = null; }
+  myPasses = loadPasses(); myPass = myPasses.length ? myPasses[myPasses.length - 1] : null;
   const spots = await remainingSpots();
   const closed = isClosedNow();
   const full = spots !== null && spots <= 0;
@@ -52,6 +60,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     return closed ? showClosed() : showMsg('😔', 'Cupos agotados', 'Este evento alcanzó su capacidad máxima. Gracias por tu interés.');
   }
   renderEvent(spots);
+  $('btn-mypass').textContent = myPasses.length > 1 ? 'Ya inscribiste a ' + myPasses.length + ' personas: ver mis pases' : 'Ya te inscribiste: ver mi pase';
   $('btn-mypass').classList.toggle('hidden', !myPass);
   show('st-form');
 });
@@ -245,7 +254,7 @@ $('reg-form').addEventListener('submit', async (e) => {
     }
 
     myPass = { code, name, phone, age, isPaid: reg.isPaid, paymentMethod: method, paymentStatus };
-    try { localStorage.setItem(passKey(), JSON.stringify(myPass)); } catch (e) {}
+    myPasses.push(myPass); savePasses();
     try { confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } }); } catch (e) {}
     showPass(myPass);
   } finally {
@@ -266,7 +275,27 @@ function showPass(p) {
   st.className = 'inline-block text-xs font-semibold px-3 py-1 rounded-full border ' + { indigo: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20', emerald: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', amber: 'bg-amber-500/10 text-amber-400 border-amber-500/20', sky: 'bg-sky-500/10 text-sky-400 border-sky-500/20' }[map[1]];
   $('qr').innerHTML = '';
   new QRCode($('qr'), { text: 'EVT-' + p.code, width: 160, height: 160, colorDark: '#020617', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.H });
+  renderPassList();
   show('st-pass');
+}
+
+// Si desde este dispositivo se inscribió a más de una persona, se muestran todas para elegir cuál pase ver
+function renderPassList() {
+  const box = $('pass-list-box'), list = $('pass-list');
+  box.classList.toggle('hidden', myPasses.length < 2);
+  list.innerHTML = '';
+  if (myPasses.length < 2) return;
+  $('pass-list-title').textContent = 'Pases inscritos desde este dispositivo (' + myPasses.length + '): toca un nombre para verlo';
+  myPasses.forEach(p => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = p.name;   // textContent: el nombre nunca se interpreta como HTML
+    const on = p.code === myPass.code;
+    b.className = 'max-w-[10rem] truncate px-3 py-1.5 text-xs font-semibold rounded-full border transition ' + (on ? 'bg-indigo-600 text-white border-indigo-500' : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700');
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    b.addEventListener('click', () => showPass(p));
+    list.appendChild(b);
+  });
 }
 
 $('btn-print').addEventListener('click', () => window.print());
