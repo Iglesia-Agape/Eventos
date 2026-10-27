@@ -10,9 +10,10 @@
 <title>Inscripción | Ministerio Internacional Ágape</title>
 <!-- Abre la conexión con Supabase desde el inicio (ahorra tiempo al cargar el evento y su imagen). Si algún día cambias de proyecto de Supabase, cambia también esta dirección. -->
 <link rel="preconnect" href="https://gnnxwhrqdyubiaspczuw.supabase.co" crossorigin>
+<link rel="preconnect" href="https://gnnxwhrqdyubiaspczuw.supabase.co">   <!-- sin crossorigin: es la conexión que usa la imagen del evento -->
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
-<script src="config.js"></script>
+<script defer src="config.js"></script>   <!-- defer: ya no frena la carga de la página; se ejecuta justo antes de inscripcion.js -->
 <link rel="stylesheet" href="estilos.css">
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4"></script>

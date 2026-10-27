@@ -1722,11 +1722,17 @@ function closePassModal() {
     }
 
     async function uploadEventImage(file, eventId) {
-      const blob = await resizeImageToBlob(file);
-      const path = `${eventId}-${Date.now()}.jpg`;
-      const { error } = await supabaseClient.storage.from(IMAGE_BUCKET).upload(path, blob, { contentType: 'image/jpeg', cacheControl: '31536000' });
+      // Se guardan dos tamaños: la imagen grande (-w1200) y una más ligera (-w800) para celulares
+      const base = `${eventId}-${Date.now()}`;
+      const big = await resizeImageToBlob(file, 1200, 0.82);
+      const small = await resizeImageToBlob(file, 800, 0.8);
+      const bucket = supabaseClient.storage.from(IMAGE_BUCKET);
+      const opts = { contentType: 'image/jpeg', cacheControl: '31536000' };
+      const bigPath = `${base}-w1200.jpg`;
+      const { error } = await bucket.upload(bigPath, big, opts);
       if (error) throw error;
-      return supabaseClient.storage.from(IMAGE_BUCKET).getPublicUrl(path).data.publicUrl;
+      try { await bucket.upload(`${base}-w800.jpg`, small, opts); } catch (e) {}   // si falla, la página pública usa la grande
+      return bucket.getPublicUrl(bigPath).data.publicUrl;
     }
 
     // Borra una imagen anterior del almacenamiento. Si falla no importa: solo queda un archivo sin usar.
@@ -1735,7 +1741,10 @@ function closePassModal() {
         const marker = `/${IMAGE_BUCKET}/`;
         const i = String(url || '').indexOf(marker);
         if (i === -1 || !supabaseClient) return;
-        await supabaseClient.storage.from(IMAGE_BUCKET).remove([decodeURIComponent(url.slice(i + marker.length).split('?')[0])]);
+        const path = decodeURIComponent(url.slice(i + marker.length).split('?')[0]);
+        const paths = [path];
+        if (/-w1200\.jpg$/.test(path)) paths.push(path.replace(/-w1200\.jpg$/, '-w800.jpg'));   // también la versión ligera
+        await supabaseClient.storage.from(IMAGE_BUCKET).remove(paths);
       } catch (e) {}
     }
 

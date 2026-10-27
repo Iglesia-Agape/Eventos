@@ -52,7 +52,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   myPasses = loadPasses(); myPass = myPasses.length ? myPasses[myPasses.length - 1] : null;
   // La imagen del evento empieza a descargarse YA, mientras se consultan los cupos (antes esperaba a que terminara esa consulta)
-  if (isSafeImage(evt.imageUrl)) $('ev-image').src = evt.imageUrl;
+  if (isSafeImage(evt.imageUrl)) setEventImage(evt.imageUrl);
   const spots = await remainingSpots();
   const closed = isClosedNow();
   const full = spots !== null && spots <= 0;
@@ -119,11 +119,28 @@ async function remainingSpots() {
 
 // Solo se muestran imágenes alojadas en el almacenamiento de Supabase (https)
 function isSafeImage(u) { try { const x = new URL(u); return x.protocol === 'https:' && x.hostname.endsWith('.supabase.co'); } catch (e) { return false; } }
-$('ev-image').addEventListener('error', () => $('ev-image').classList.add('hidden'));
+// Las imágenes nuevas se guardan en dos tamaños (-w1200 y -w800): el celular descarga solo la que necesita.
+// Las imágenes antiguas (sin ese sufijo) se cargan como siempre.
+function setEventImage(url) {
+  const img = $('ev-image');
+  if (img.dataset.url === url) return;
+  img.dataset.url = url;
+  if (/-w1200\.jpg$/.test(url)) {
+    img.sizes = '(min-width: 576px) 544px, calc(100vw - 32px)';
+    img.srcset = url.replace(/-w1200\.jpg$/, '-w800.jpg') + ' 800w, ' + url + ' 1200w';
+  }
+  img.src = url;
+}
+// Si la versión ligera no existe, se usa la grande; si tampoco carga, se oculta la imagen
+$('ev-image').addEventListener('error', () => {
+  const img = $('ev-image');
+  if (img.hasAttribute('srcset')) { img.removeAttribute('srcset'); img.removeAttribute('sizes'); img.src = evt.imageUrl; return; }
+  img.classList.add('hidden');
+});
 
 function renderEvent(spots) {
   $('ev-title').textContent = evt.title;
-  if (isSafeImage(evt.imageUrl)) { $('ev-image').src = evt.imageUrl; $('ev-image').classList.remove('hidden'); } else { $('ev-image').classList.add('hidden'); }
+  if (isSafeImage(evt.imageUrl)) { setEventImage(evt.imageUrl); $('ev-image').classList.remove('hidden'); } else { $('ev-image').classList.add('hidden'); }
   $('ev-desc').textContent = evt.description || 'Te esperamos para vivir este evento juntos.';
   $('ev-date').textContent = evt.date ? fmtDate(evt.date) : 'Fecha por confirmar';
   const p = $('ev-price');
