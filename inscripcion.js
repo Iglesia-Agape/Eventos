@@ -33,18 +33,69 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Solo se descarga ESTE evento (nunca la lista de inscritos)
   const COLS = 'id,title,date,capacity,is_paid,price,bank_info,description,drive_folder_id';
-  let { data, error } = await sb.from('events').select(COLS + ',image_url').eq('id', id).maybeSingle();
-  if (error) ({ data, error } = await sb.from('events').select(COLS).eq('id', id).maybeSingle());   // por si la columna de imagen aún no existe
+  // Se prueban de más a menos columnas, por si alguna (imagen, cierre de inscripciones) aún no existe en la base
+  let data = null, error = null;
+  for (const extra of [',image_url,registration_open,auto_close,registration_deadline', ',image_url,registration_open,auto_close', ',image_url', '']) {
+    ({ data, error } = await sb.from('events').select(COLS + extra).eq('id', id).maybeSingle());
+    if (!error) break;
+  }
   if (error || !data) return showMsg('🔍', 'Evento no encontrado', 'El enlace es inválido o el evento ya no está disponible.');
-  evt = { id: data.id, title: data.title, date: data.date, capacity: data.capacity, isPaid: data.is_paid, price: parseFloat(data.price) || 0, description: data.description, driveFolderId: data.drive_folder_id, imageUrl: data.image_url || '' };
+  evt = { id: data.id, title: data.title, date: data.date, capacity: data.capacity, isPaid: data.is_paid, price: parseFloat(data.price) || 0, description: data.description, driveFolderId: data.drive_folder_id, imageUrl: data.image_url || '', registrationOpen: data.registration_open !== false, autoClose: !!data.auto_close, registrationDeadline: data.registration_deadline || '' };
 
-  const spots = await remainingSpots();
-  if (spots !== null && spots <= 0) return showMsg('😔', 'Cupos agotados', 'Este evento alcanzó su capacidad máxima. Gracias por tu interés.');
-  renderEvent(spots);
   try { myPass = JSON.parse(localStorage.getItem(passKey())); } catch (e) { myPass = null; }
+  const spots = await remainingSpots();
+  const closed = isClosedNow();
+  const full = spots !== null && spots <= 0;
+  if (closed || full) {
+    // Quien ya se inscribió puede seguir viendo su pase aunque se hayan cerrado o llenado las inscripciones
+    if (myPass) { $('btn-another').classList.add('hidden'); return showPass(myPass); }
+    return closed ? showClosed() : showMsg('😔', 'Cupos agotados', 'Este evento alcanzó su capacidad máxima. Gracias por tu interés.');
+  }
+  renderEvent(spots);
   $('btn-mypass').classList.toggle('hidden', !myPass);
   show('st-form');
 });
+
+// Inscripciones cerradas: a mano por el administrador, o solas al comenzar el evento.
+// Esta es solo la comprobación visual; la base de datos también la aplica, así que no se puede saltar.
+const HN_OFFSET_H = 6;   // Honduras = UTC-6, sin horario de verano
+function autoCloseTime(e) {
+  if (!e.autoClose) return null;
+  const m = String(e.date || '').match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+  return m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4] + HN_OFFSET_H, +m[5]) : null;
+}
+// La fecha límite vence a las 00:00 del día siguiente (hora de Honduras)
+function deadlineEnd(e) {
+  const m = String(e.registrationDeadline || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? Date.UTC(+m[1], +m[2] - 1, +m[3] + 1, HN_OFFSET_H, 0) : null;
+}
+function closeAtMs(e) {
+  const c = [autoCloseTime(e), deadlineEnd(e)].filter(t => t !== null);
+  return c.length ? Math.min(...c) : null;
+}
+const hnDayKey = (ms) => new Date(ms - HN_OFFSET_H * 3600000).toISOString().slice(0, 10);
+function isClosedNow() {
+  if (evt.registrationOpen === false) return true;
+  const t = closeAtMs(evt);
+  return t !== null && Date.now() >= t;
+}
+// Días que faltan para que se cierren las inscripciones ('' si no hay cierre programado)
+function closeCountdownText() {
+  const t = closeAtMs(evt);
+  if (t === null || Date.now() >= t) return '';
+  const last = hnDayKey(t - 1);
+  const days = Math.round((Date.parse(last) - Date.parse(hnDayKey(Date.now()))) / 86400000);
+  const lastTxt = new Date(Date.parse(last)).toLocaleDateString('es-HN', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+  if (days <= 0) return '⏳ Último día para inscribirse (hoy)';
+  return '⏳ ' + (days === 1 ? 'Queda 1 día' : 'Quedan ' + days + ' días') + ' para inscribirse · hasta el ' + lastTxt;
+}
+function showClosed() { return showMsg('🔒', 'Inscripciones cerradas', 'Este evento ya no recibe nuevas inscripciones. Si necesitas inscribirte, comunícate con la iglesia.'); }
+async function registrationsOpen() {
+  try {
+    const { data, error } = await sb.rpc('event_accepts_registrations', { p_event_id: evt.id });
+    return (error || typeof data !== 'boolean') ? null : data;
+  } catch (e) { return null; }
+}
 
 // Cupos disponibles: usa la función SQL opcional; si no existe aún, simplemente no se muestra
 async function remainingSpots() {
@@ -73,6 +124,9 @@ function renderEvent(spots) {
     p.className = 'px-3 py-1 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-bold';
   }
   if (spots !== null && spots <= 20) { $('ev-spots').textContent = 'Quedan ' + spots + ' cupos'; $('ev-spots').classList.remove('hidden'); }
+  const cd = closeCountdownText();
+  $('ev-countdown').textContent = cd;
+  $('ev-countdown').classList.toggle('hidden', !cd);
   $('pay-channels').classList.toggle('hidden', !evt.isPaid);
   $('pay-section').classList.toggle('hidden', !evt.isPaid);
   $('btn-submit').textContent = evt.isPaid ? 'Completar inscripción y obtener pase QR' : 'Confirmar asistencia y obtener pase QR';
@@ -148,6 +202,7 @@ $('reg-form').addEventListener('submit', async (e) => {
   const btn = $('btn-submit'), prog = $('progress'), progText = $('progress-text');
   btn.disabled = true; prog.classList.remove('hidden');
   try {
+    if ((await registrationsOpen()) === false) return showClosed();
     if (await alreadyRegistered(name, phone)) return formError(DUP_MSG);
 
     // Volver a revisar cupos justo antes de inscribir
@@ -185,6 +240,7 @@ $('reg-form').addEventListener('submit', async (e) => {
     if (error) {
       console.error(error);
       if (String(error.message || '').includes('uq_registrations_event_name_phone')) return formError(DUP_MSG);
+      if ((await registrationsOpen()) === false) return showClosed();   // se cerraron mientras llenaba el formulario
       return formError('No pudimos completar tu inscripción. Inténtalo de nuevo en un momento.');
     }
 

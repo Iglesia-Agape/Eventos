@@ -181,6 +181,11 @@
                   <i data-lucide="folder-plus" class="w-3.5 h-3.5 text-emerald-400"></i>
                   Sincronizar Drive
                 </button>
+                <button onclick="toggleRegistrationOpen()" id="btn-toggle-reg" class="px-3 py-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 text-xs font-medium rounded-lg border border-emerald-500/30 flex items-center gap-1.5 transition" title="Abrir o cerrar las inscripciones de este evento">
+                  <i data-lucide="lock-open" class="w-3.5 h-3.5"></i>
+                  <span id="btn-toggle-reg-text">Inscripciones abiertas</span>
+                </button>
+                <span id="reg-countdown" class="hidden px-3 py-2 text-xs font-medium rounded-lg bg-amber-500/10 text-amber-300 border border-amber-500/20"></span>
                 <button onclick="startEditEvent()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-lg border border-slate-700 flex items-center gap-1.5 transition" title="Editar este evento">
                   <i data-lucide="pencil" class="w-3.5 h-3.5 text-indigo-400"></i>
                   Editar
@@ -236,6 +241,10 @@
                   <option value="Exento">Exento (Gratis)</option>
                   <option value="Llegó">Asistió</option>
                 </select>
+                <button onclick="openRegistrantModal()" id="btn-add-registrant" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg flex items-center gap-1.5 transition shadow-lg shadow-indigo-500/20" title="Inscribir a una persona desde el panel">
+                  <i data-lucide="user-plus" class="w-3.5 h-3.5"></i>
+                  Inscribir persona
+                </button>
                 <button onclick="exportCSV()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-lg border border-slate-700 flex items-center gap-1.5 transition">
                   <i data-lucide="download" class="w-3.5 h-3.5"></i>
                   CSV
@@ -394,6 +403,25 @@
             </div>
 
             <div class="sm:col-span-2">
+              <label class="flex items-start gap-2.5 cursor-pointer select-none">
+                <input type="checkbox" id="new-auto-close" class="mt-0.5 w-4 h-4 rounded border-slate-700 bg-slate-950 accent-indigo-500">
+                <span>
+                  <span class="block text-xs font-medium text-slate-300">Cerrar las inscripciones automáticamente cuando comience el evento</span>
+                  <span class="block text-[10px] text-slate-400 mt-0.5">Después de la fecha y hora indicadas, el enlace público ya no aceptará inscripciones. Tú puedes seguir inscribiendo personas desde el panel.</span>
+                </span>
+              </label>
+            </div>
+
+            <div class="sm:col-span-2">
+              <label class="block text-xs font-medium text-slate-300 mb-1">Fecha límite de inscripción <span class="text-slate-400 font-normal">(opcional)</span></label>
+              <div class="flex items-center gap-2">
+                <input type="date" id="new-reg-deadline" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+                <button type="button" onclick="document.getElementById('new-reg-deadline').value=''" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-lg border border-slate-700 transition whitespace-nowrap">Quitar</button>
+              </div>
+              <p class="text-[10px] text-slate-400 mt-1">Si la eliges, las inscripciones se cierran al terminar ese día (por ejemplo, una semana antes del evento). Si la dejas vacía, no hay fecha límite. Tú puedes seguir inscribiendo personas desde el panel.</p>
+            </div>
+
+            <div class="sm:col-span-2">
               <label class="block text-xs font-medium text-slate-300 mb-1">Descripción Breve o Instrucciones del Evento</label>
               <textarea id="new-desc" rows="2" placeholder="Detalles, lugar, expositores o instrucciones generales para los asistentes..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"></textarea>
             </div>
@@ -465,6 +493,70 @@
           </button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL: INSCRIBIR / EDITAR UNA PERSONA       -->
+  <!-- ========================================== -->
+  <div id="modal-registrant" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+      <button type="button" onclick="closeRegistrantModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-xl hover:bg-slate-800 transition" title="Cerrar">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+      <form id="registrant-form" class="space-y-4" novalidate>
+        <div class="pr-8">
+          <h3 id="reg-form-title" class="text-base font-bold text-white">Inscribir persona</h3>
+          <p id="reg-form-subtitle" class="text-xs text-slate-400 mt-0.5"></p>
+        </div>
+        <div>
+          <label for="reg-name" class="block text-xs font-medium text-slate-300 mb-1">Nombre y apellido *</label>
+          <input id="reg-name" type="text" maxlength="120" autocomplete="off" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500">
+        </div>
+        <div class="grid grid-cols-[2fr_1fr] gap-3">
+          <div>
+            <label for="reg-phone" class="block text-xs font-medium text-slate-300 mb-1">Celular (opcional)</label>
+            <input id="reg-phone" type="tel" maxlength="20" autocomplete="off" placeholder="9999-9999" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500">
+          </div>
+          <div>
+            <label for="reg-age" class="block text-xs font-medium text-slate-300 mb-1">Edad</label>
+            <input id="reg-age" type="number" min="1" max="120" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500">
+          </div>
+        </div>
+        <div id="reg-pay-section" class="hidden space-y-3 pt-3 border-t border-slate-800">
+          <div>
+            <label for="reg-method" class="block text-xs font-medium text-slate-300 mb-1">Método de pago</label>
+            <select id="reg-method" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500">
+              <option value="Efectivo">Efectivo</option>
+              <option value="POS">POS (tarjeta)</option>
+              <option value="BAC Credomatic">Transferencia BAC Credomatic</option>
+              <option value="PayPal">PayPal</option>
+            </select>
+          </div>
+          <div>
+            <label for="reg-status" class="block text-xs font-medium text-slate-300 mb-1">Estado del pago</label>
+            <select id="reg-status" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500">
+              <option value="Pagado">Pagado</option>
+              <option value="En Revisión">En Revisión</option>
+              <option value="Pendiente Pago (POS)">Pendiente POS (Cafetería)</option>
+              <option value="Pendiente Pago (Efectivo)">Pendiente Efectivo (Cafetería)</option>
+              <option value="Rechazado">Rechazado</option>
+            </select>
+          </div>
+        </div>
+        <label id="reg-attended-row" class="flex items-start gap-2.5 cursor-pointer select-none">
+          <input type="checkbox" id="reg-attended" class="mt-0.5 w-4 h-4 rounded border-slate-700 bg-slate-950 accent-indigo-500">
+          <span>
+            <span class="block text-xs font-medium text-slate-300">Marcar que ya llegó al evento</span>
+            <span class="block text-[10px] text-slate-400 mt-0.5">Úsalo cuando la persona está en la puerta.</span>
+          </span>
+        </label>
+        <p id="reg-error" class="hidden text-xs p-3 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-300"></p>
+        <div class="flex justify-end gap-3 pt-1">
+          <button type="button" onclick="closeRegistrantModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-lg">Cancelar</button>
+          <button type="submit" id="btn-save-registrant" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white text-xs font-semibold rounded-lg shadow-lg shadow-indigo-500/20 transition">Guardar</button>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -741,6 +833,7 @@
         const id = el.dataset.id;
         if (el.dataset.act === 'attendance') toggleAttendance(id);
         else if (el.dataset.act === 'pass') openPassModal(id);
+        else if (el.dataset.act === 'edit') openRegistrantModal(id);
         else if (el.dataset.act === 'delete') deleteRegistration(id);
       });
       tbody.addEventListener('change', (ev) => {
@@ -802,7 +895,10 @@
             description: e.description,
             driveFolderUrl: e.drive_folder_url,
             driveFolderId: e.drive_folder_id,
-            imageUrl: e.image_url
+            imageUrl: e.image_url,
+            registrationOpen: e.registration_open !== false,
+            autoClose: !!e.auto_close,
+            registrationDeadline: e.registration_deadline || ''
           }));
         } else if (!errEvt && dbEvents && dbEvents.length === 0 && state.events.length > 0) {
           // Si Supabase está vacía, subir el evento demo local automáticamente
@@ -853,7 +949,10 @@
           description: payload.new.description,
           driveFolderUrl: payload.new.drive_folder_url,
           driveFolderId: payload.new.drive_folder_id,
-          imageUrl: payload.new.image_url
+          imageUrl: payload.new.image_url,
+          registrationOpen: payload.new.registration_open !== false,
+          autoClose: !!payload.new.auto_close,
+          registrationDeadline: payload.new.registration_deadline || ''
         };
         if (!state.events.some(e => e.id === newEvt.id)) {
           state.events.unshift(newEvt);
@@ -868,7 +967,9 @@
           Object.assign(local, {
             title: u.title, date: u.date, capacity: u.capacity, isPaid: u.is_paid, price: parseFloat(u.price) || 0,
             bankInfo: u.bank_info, description: u.description, driveFolderUrl: u.drive_folder_url,
-            driveFolderId: u.drive_folder_id, imageUrl: u.image_url
+            driveFolderId: u.drive_folder_id, imageUrl: u.image_url,
+            registrationOpen: u.registration_open !== false, autoClose: !!u.auto_close,
+            registrationDeadline: u.registration_deadline || ''
           });
           saveLocalData();
           if (!state.isPublicMode && editingEventId !== u.id) { renderEventsList(); renderCurrentEventDetails(); }
@@ -985,13 +1086,14 @@
       state.events.forEach(evt => {
         const isSelected = evt.id === state.currentEventId;
         const count = state.registrations.filter(r => r.eventId === evt.id).length;
+        const regClosed = registrationStatus(evt) !== 'open';
         const card = document.createElement('div');
         card.onclick = () => { state.currentEventId = evt.id; renderEventsList(); renderCurrentEventDetails(); };
         card.className = `p-3 rounded-xl border cursor-pointer transition-all ${isSelected ? 'bg-indigo-600/10 border-indigo-500/60 shadow-md shadow-indigo-500/10' : 'bg-slate-900 border-slate-800 hover:border-slate-700'}`;
         card.innerHTML = `
           <div class="flex justify-between items-start">
             <span class="text-[10px] font-semibold ${evt.isPaid ? 'text-emerald-400' : 'text-indigo-400'}">${evt.isPaid ? 'De Pago (' + (evt.price > 0 ? 'L. ' + evt.price : 'Cobro') + ')' : 'Gratuito'}</span>
-            <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">${count}/${evt.capacity}</span>
+            <span class="flex items-center gap-1.5">${regClosed ? '<span class="text-[10px] font-semibold text-rose-400">🔒 Cerrado</span>' : ''}<span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">${count}/${evt.capacity}</span></span>
           </div>
           <h4 class="text-xs font-bold text-white mt-1 line-clamp-1">${esc(evt.title)}</h4>
         `;
@@ -1058,6 +1160,24 @@
       document.getElementById('card-stat-paid').classList.toggle('hidden', !evt.isPaid);
       document.getElementById('btn-link-drive').classList.toggle('hidden', !evt.isPaid);
       if (!evt.isPaid) btnOpenDrive.classList.add('hidden');
+
+      // Estado de las inscripciones (abiertas / cerradas a mano / cerradas por fecha)
+      const regState = registrationStatus(evt);
+      const btnReg = document.getElementById('btn-toggle-reg');
+      const BTN_BASE = 'px-3 py-2 text-xs font-medium rounded-lg border flex items-center gap-1.5 transition ';
+      if (regState === 'open') {
+        btnReg.className = BTN_BASE + 'bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border-emerald-500/30';
+        btnReg.innerHTML = '<i data-lucide="lock-open" class="w-3.5 h-3.5"></i><span id="btn-toggle-reg-text">Inscripciones abiertas</span>';
+      } else {
+        btnReg.className = BTN_BASE + 'bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border-rose-500/30';
+        btnReg.innerHTML = '<i data-lucide="lock" class="w-3.5 h-3.5"></i><span id="btn-toggle-reg-text">' +
+          (regState === 'auto' ? 'Cerradas (el evento ya inició)' : regState === 'deadline' ? 'Cerradas (venció la fecha límite)' : 'Inscripciones cerradas') + '</span>';
+      }
+      const cdEl = document.getElementById('reg-countdown');
+      const cdText = closeCountdownText(evt);
+      cdEl.textContent = cdText;
+      cdEl.classList.toggle('hidden', !cdText);
+      lucide.createIcons();
       
       renderTable();
     }
@@ -1193,6 +1313,9 @@
             <div class="flex items-center justify-end gap-1.5">
               <button data-act="pass" data-id="${esc(reg.id)}" class="px-2.5 py-1 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 rounded-lg text-[11px] font-medium border border-indigo-500/30 transition flex items-center gap-1">
                 <i data-lucide="qr-code" class="w-3 h-3"></i> Pase QR
+              </button>
+              <button data-act="edit" data-id="${esc(reg.id)}" title="Editar datos de esta persona" class="p-1 text-slate-500 hover:text-indigo-400 rounded hover:bg-indigo-500/10 transition">
+                <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
               </button>
               <button data-act="delete" data-id="${esc(reg.id)}" title="Eliminar registro" class="p-1 text-slate-500 hover:text-rose-400 rounded hover:bg-rose-500/10 transition">
                 <i data-lucide="trash" class="w-3.5 h-3.5"></i>
@@ -1346,7 +1469,7 @@ function closePassModal() {
     function shareTicketViaWhatsApp() {
       if (!currentViewingReg) return;
       const evt = state.events.find(e => e.id === currentViewingReg.eventId);
-      const text = `¡Hola! Aquí está mi pase para *${evt ? evt.title : 'el evento'}* en Ministerio Internacional Ágape.\n\n👤 *Nombre:* ${currentViewingReg.name}\n🔑 *Código de Entrada:* EVT-${currentViewingReg.code}\n📱 *${contactLine(currentViewingReg)}*${currentViewingReg.isPaid ? `\n💳 *Estado:* ${currentViewingReg.paymentStatus}` : ''}\n\nPresenta este código al ingresar.`;
+      const text = `¡Hola! Aquí está mi pase para *${evt ? evt.title : 'el evento'}* en Ministerio Internacional Ágape.\n\n👤 *Nombre:* ${currentViewingReg.name}\n🔑 *Código de Entrada:* EVT-${currentViewingReg.code}${contactLine(currentViewingReg) !== 'Sin contacto' ? `\n📱 *${contactLine(currentViewingReg)}*` : ''}${currentViewingReg.isPaid ? `\n💳 *Estado:* ${currentViewingReg.paymentStatus}` : ''}\n\nPresenta este código al ingresar.`;
       window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
     }
 
@@ -1539,7 +1662,7 @@ function closePassModal() {
       const regsCount = state.registrations.filter(r => r.eventId === evt.id).length;
       document.getElementById('form-title-text').innerText = 'Editar evento';
       document.getElementById('form-subtitle').innerText = (regsCount > 0
-        ? `Este evento ya tiene ${regsCount} inscritos: la capacidad no puede ser menor a ${regsCount}. `
+        ? `Este evento ya tiene ${regsCount} inscritos: la capacidad no se puede bajar de ${Math.max(1, Math.min(regsCount, evt.capacity))}. `
         : 'Modifica los datos del evento y guarda los cambios. ')
         + 'El tipo (gratuito o de pago) no se puede cambiar; si lo necesitas, crea un evento nuevo.';
       document.getElementById('btn-save-event').innerHTML = `<i data-lucide="check" class="w-4 h-4"></i> Guardar cambios`;
@@ -1562,7 +1685,8 @@ function closePassModal() {
       }
       const cap = document.getElementById('new-capacity');
       cap.value = evt.capacity;
-      cap.min = String(Math.max(1, regsCount));
+      // Si el administrador inscribió sobre el cupo (más inscritos que capacidad), se puede guardar sin tocar la capacidad, pero no bajarla más
+      cap.min = String(Math.max(1, Math.min(regsCount, evt.capacity)));
       const typeSel = document.getElementById('new-is-paid');
       typeSel.value = evt.isPaid ? 'true' : 'false';
       typeSel.disabled = true;   // el tipo no se cambia al editar (handleUpdateEvent conserva el original)
@@ -1570,6 +1694,8 @@ function closePassModal() {
       document.getElementById('new-price').value = evt.price ?? 0;
       document.getElementById('new-bank-info').value = evt.bankInfo || '';
       document.getElementById('new-desc').value = evt.description || '';
+      document.getElementById('new-auto-close').checked = !!evt.autoClose;
+      document.getElementById('new-reg-deadline').value = evt.registrationDeadline || '';
 
       pendingImageFile = null; removeImageFlag = false;
       document.getElementById('new-image-file').value = '';
@@ -1609,9 +1735,13 @@ function closePassModal() {
       const bankInfo = evt.isPaid ? document.getElementById('new-bank-info').value.trim() : '';
       const desc = document.getElementById('new-desc').value.trim();
 
+      const autoClose = document.getElementById('new-auto-close').checked;
+      const regDeadline = document.getElementById('new-reg-deadline').value || '';
       if (!title) return showToast('Escribe el nombre del evento.', 'warning');
       if (!date) return showToast('Completa la fecha, la hora y a. m./p. m.', 'warning');
-      if (!Number.isInteger(capacity) || capacity < Math.max(1, regsCount)) return showToast(`La capacidad no puede ser menor a los ${regsCount} inscritos actuales.`, 'warning');
+      if (regDeadline && regDeadline > date.slice(0, 10)) return showToast('La fecha límite de inscripción no puede ser después del día del evento.', 'warning');
+      const minCap = Math.max(1, Math.min(regsCount, evt.capacity));
+      if (!Number.isInteger(capacity) || capacity < minCap) return showToast(`La capacidad no puede ser menor a ${minCap} (inscritos actuales).`, 'warning');
       if (evt.isPaid && !(price >= 0)) return showToast('Escribe un precio válido.', 'warning');
 
       btn.disabled = true;
@@ -1619,6 +1749,8 @@ function closePassModal() {
       lucide.createIcons();
 
       const changes = { title, date, capacity, price, bank_info: bankInfo, description: desc };
+      if (autoClose !== !!evt.autoClose) changes.auto_close = autoClose;
+      if (regDeadline !== (evt.registrationDeadline || '')) changes.registration_deadline = regDeadline || null;
       let newImageUrl = evt.imageUrl || '';
       let imageWarning = '';
       if (pendingImageFile) {
@@ -1645,7 +1777,7 @@ function closePassModal() {
       }
 
       const oldImage = evt.imageUrl;
-      Object.assign(evt, { title, date, capacity, price, bankInfo, description: desc, imageUrl: newImageUrl });
+      Object.assign(evt, { title, date, capacity, price, bankInfo, description: desc, imageUrl: newImageUrl, autoClose, registrationDeadline: regDeadline });
       if ('image_url' in changes && oldImage && oldImage !== newImageUrl) removeStoredImage(oldImage);
       saveLocalData();
 
@@ -1657,9 +1789,244 @@ function closePassModal() {
       showToast(imageWarning ? 'Cambios guardados. ' + imageWarning : 'Evento actualizado.', imageWarning ? 'warning' : 'success');
     }
 
+    // ==========================================
+    // CIERRE DE INSCRIPCIONES + ALTAS MANUALES
+    // ==========================================
+    // Misma regla que event_accepts_registrations() en la base de datos. La base es la que
+    // manda de verdad (aunque alguien modifique esta página, no puede inscribirse en un evento cerrado).
+    const HN_OFFSET_H = 6;   // Honduras = UTC-6, sin horario de verano
+    const DEADLINE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+    // Momento en que empieza el evento (solo si el cierre automático está activado)
+    function autoCloseTime(evt) {
+      if (!evt.autoClose) return null;
+      const m = String(evt.date || '').match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+      if (!m) return null;
+      return Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4] + HN_OFFSET_H, +m[5]);
+    }
+    // Momento en que vence la fecha límite: las 00:00 del día siguiente (hora de Honduras)
+    function deadlineEnd(evt) {
+      const m = String(evt.registrationDeadline || '').match(DEADLINE_RE);
+      if (!m) return null;
+      return Date.UTC(+m[1], +m[2] - 1, +m[3] + 1, HN_OFFSET_H, 0);
+    }
+    // El primero que ocurra entre la fecha límite y el inicio del evento (o null si no hay ninguno)
+    function closeAtMs(evt) {
+      const c = [autoCloseTime(evt), deadlineEnd(evt)].filter(t => t !== null);
+      return c.length ? Math.min(...c) : null;
+    }
+    const hnDayKey = (ms) => new Date(ms - HN_OFFSET_H * 3600000).toISOString().slice(0, 10);
+
+    // 'open' | 'manual' (cerrado por el administrador) | 'auto' (ya comenzó el evento) | 'deadline' (venció la fecha límite)
+    function registrationStatus(evt) {
+      if (evt.registrationOpen === false) return 'manual';
+      const now = Date.now();
+      const dl = deadlineEnd(evt), ac = autoCloseTime(evt);
+      if (dl !== null && now >= dl) return 'deadline';
+      if (ac !== null && now >= ac) return 'auto';
+      return 'open';
+    }
+
+    // Texto con los días que faltan para que se cierren las inscripciones ('' si no hay cierre programado)
+    function closeCountdownText(evt) {
+      if (registrationStatus(evt) !== 'open') return '';
+      const t = closeAtMs(evt);
+      if (t === null) return '';
+      const last = hnDayKey(t - 1);                                   // último día en que se puede inscribir
+      const days = Math.round((Date.parse(last) - Date.parse(hnDayKey(Date.now()))) / 86400000);
+      const lastTxt = new Date(Date.parse(last)).toLocaleDateString('es-HN', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+      if (days <= 0) return 'Último día para inscribirse (hoy)';
+      return (days === 1 ? 'Queda 1 día' : 'Quedan ' + days + ' días') + ' para inscribirse · hasta el ' + lastTxt;
+    }
+
+    async function toggleRegistrationOpen() {
+      const evt = state.events.find(e => e.id === state.currentEventId);
+      if (!evt) return showToast('Primero selecciona o crea un evento.', 'warning');
+      const st = registrationStatus(evt);
+      if (st === 'deadline') {
+        return showToast('Las inscripciones se cerraron solas porque venció la fecha límite. Para reabrirlas, edita el evento y cambia o quita la fecha límite.', 'warning');
+      }
+      if (st === 'auto') {
+        return showToast('Las inscripciones se cerraron solas porque el evento ya inició. Para reabrirlas, edita el evento y desmarca el cierre automático (o cambia la fecha).', 'warning');
+      }
+      const newOpen = (st === 'manual');   // si estaban cerradas, se abren; si estaban abiertas, se cierran
+      if (!newOpen && !confirm('¿Cerrar las inscripciones de "' + evt.title + '"?\n\nEl enlace público dejará de aceptar nuevas inscripciones. Tú podrás seguir inscribiendo personas desde el panel y reabrirlas cuando quieras.')) return;
+
+      if (supabaseClient) {
+        const { error } = await supabaseClient.from('events').update({ registration_open: newOpen, updated_at: new Date().toISOString() }).eq('id', evt.id);
+        if (error) return showToast('No se pudo cambiar el estado: ' + error.message, 'error');
+      }
+      evt.registrationOpen = newOpen;
+      saveLocalData();
+      renderCurrentEventDetails();
+      if (newOpen && registrationStatus(evt) === 'deadline') showToast('Quedaron abiertas, pero la fecha límite ya venció y las vuelve a cerrar. Edita el evento para cambiarla.', 'warning');
+      else if (newOpen && registrationStatus(evt) === 'auto') showToast('Quedaron abiertas, pero el cierre automático las vuelve a cerrar porque el evento ya inició.', 'warning');
+      else showToast(newOpen ? 'Inscripciones abiertas.' : 'Inscripciones cerradas.', newOpen ? 'success' : 'info');
+    }
+
+    // ---- Inscribir o editar una persona desde el panel ----
+    let editingRegId = null;
+    // Igual que normalizar_nombre() / normalizar_celular() de la base de datos
+    const normNombre = (s) => String(s || '').toLowerCase().replace(/\s+/g, '');
+    const normCelular = (s) => String(s || '').replace(/\D/g, '').replace(/^504(\d{8})$/, '$1');
+
+    function newRegCode() {
+      const a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      for (let tries = 0; tries < 20; tries++) {
+        const r = new Uint8Array(6);
+        crypto.getRandomValues(r);
+        const code = Array.from(r, v => a[v % a.length]).join('');
+        if (!state.registrations.some(x => x.code === code)) return code;
+      }
+      return Array.from(crypto.getRandomValues(new Uint8Array(8)), v => a[v % a.length]).join('');
+    }
+
+    // Deja seleccionado un valor aunque no exista en la lista (inscripciones antiguas)
+    function setSelectValue(sel, value, label) {
+      sel.value = value;
+      if (sel.value !== value) {
+        const extra = new Option(label || value, value);
+        extra.dataset.extra = '1';
+        sel.add(extra);
+        sel.value = value;
+      }
+    }
+
+    function regError(msg) {
+      const el = document.getElementById('reg-error');
+      el.textContent = msg || '';
+      el.classList.toggle('hidden', !msg);
+    }
+
+    function openRegistrantModal(regId) {
+      const evt = state.events.find(e => e.id === state.currentEventId);
+      if (!evt) return showToast('Primero selecciona o crea un evento.', 'warning');
+      const reg = regId ? state.registrations.find(r => r.id === regId) : null;
+      if (regId && !reg) return;
+      editingRegId = reg ? reg.id : null;
+
+      document.getElementById('registrant-form').reset();
+      document.querySelectorAll('#reg-method option[data-extra], #reg-status option[data-extra]').forEach(o => o.remove());
+      regError('');
+
+      document.getElementById('reg-form-title').innerText = reg ? 'Editar inscripción' : 'Inscribir persona';
+      const closed = registrationStatus(evt) !== 'open';
+      document.getElementById('reg-form-subtitle').innerText = 'Evento: ' + evt.title +
+        (!reg && closed ? ' (inscripciones cerradas: como administrador igual puedes inscribir)' : '');
+      document.getElementById('reg-name').value = reg ? reg.name : '';
+      document.getElementById('reg-phone').value = reg ? (reg.phone || '') : '';
+      document.getElementById('reg-age').value = reg && reg.age != null ? reg.age : '';
+
+      document.getElementById('reg-pay-section').classList.toggle('hidden', !evt.isPaid);
+      if (evt.isPaid) {
+        setSelectValue(document.getElementById('reg-method'), reg ? (reg.paymentMethod || 'Efectivo') : 'Efectivo');
+        const ps = reg ? (reg.paymentStatus || 'Pagado') : 'Pagado';
+        const mapped = ps.includes('POS') ? 'Pendiente Pago (POS)' : ps.includes('Efectivo') ? 'Pendiente Pago (Efectivo)' : ps;
+        setSelectValue(document.getElementById('reg-status'), mapped, ps);
+      }
+      document.getElementById('reg-attended-row').classList.toggle('hidden', !!reg);
+      document.getElementById('btn-save-registrant').disabled = false;
+      document.getElementById('btn-save-registrant').innerText = reg ? 'Guardar cambios' : 'Inscribir';
+      document.getElementById('modal-registrant').classList.remove('hidden');
+      lucide.createIcons();
+      document.getElementById('reg-name').focus();   // al instante: un enfoque con retraso le quitaría el cursor a otro campo ya en uso
+    }
+
+    function closeRegistrantModal() {
+      document.getElementById('modal-registrant').classList.add('hidden');
+      editingRegId = null;
+    }
+
+    async function saveRegistrant(e) {
+      e.preventDefault();
+      const evt = state.events.find(x => x.id === state.currentEventId);
+      if (!evt) return closeRegistrantModal();
+      regError('');
+
+      const name = document.getElementById('reg-name').value.trim().replace(/\s+/g, ' ');
+      const phone = document.getElementById('reg-phone').value.trim();
+      const ageRaw = document.getElementById('reg-age').value.trim();
+      const age = ageRaw === '' ? null : parseInt(ageRaw, 10);
+      const method = evt.isPaid ? document.getElementById('reg-method').value : 'Gratuito';
+      const status = evt.isPaid ? document.getElementById('reg-status').value : 'Exento';
+
+      if (name.length < 3) return regError('Escribe el nombre de la persona.');
+      if (phone) {
+        const digits = phone.replace(/\D/g, '');
+        if (digits.length < 8 || digits.length > 15) return regError('El celular debe tener entre 8 y 15 dígitos (o déjalo vacío).');
+      }
+      if (age !== null && (!Number.isInteger(age) || age < 1 || age > 120)) return regError('La edad debe estar entre 1 y 120 (o déjala vacía).');
+
+      // Misma persona (nombre + celular) en este evento
+      if (phone && state.registrations.some(r => r.eventId === evt.id && r.id !== editingRegId && r.phone &&
+          normNombre(r.name) === normNombre(name) && normCelular(r.phone) === normCelular(phone))) {
+        return regError('Ya existe una inscripción con ese nombre y celular en este evento.');
+      }
+
+      const btn = document.getElementById('btn-save-registrant');
+      btn.disabled = true;
+      const DUP = 'Ya existe una inscripción con ese nombre y celular en este evento.';
+
+      // ---- Editar ----
+      if (editingRegId) {
+        const reg = state.registrations.find(r => r.id === editingRegId);
+        if (!reg) { btn.disabled = false; return closeRegistrantModal(); }
+        const patch = { name, phone: phone || null, age };
+        if (evt.isPaid) { patch.payment_method = method; patch.payment_status = status; }
+        if (supabaseClient) {
+          const { data, error } = await supabaseClient.from('registrations').update(patch).eq('id', reg.id).select('id');
+          if (error) {
+            btn.disabled = false;
+            return regError(String(error.message || '').includes('uq_registrations_event_name_phone') ? DUP : 'No se pudo guardar: ' + error.message);
+          }
+          if (!data || data.length === 0) { btn.disabled = false; return regError('No se pudo guardar. Cierra sesión y vuelve a entrar, e inténtalo de nuevo.'); }
+        }
+        Object.assign(reg, { name, phone: phone || null, age });
+        if (evt.isPaid) Object.assign(reg, { paymentMethod: method, paymentStatus: status });
+        saveLocalData();
+        closeRegistrantModal();
+        renderCurrentEventDetails();
+        return showToast('Datos de ' + name + ' actualizados.', 'success');
+      }
+
+      // ---- Inscribir ----
+      const count = state.registrations.filter(r => r.eventId === evt.id).length;
+      if (count >= evt.capacity && !confirm('El evento ya está lleno (' + count + '/' + evt.capacity + ').\n\n¿Inscribir a esta persona de todos modos?')) { btn.disabled = false; return; }
+
+      const attended = document.getElementById('reg-attended').checked;
+      const nowIso = new Date().toISOString();
+      const row = {
+        id: 'reg-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+        event_id: evt.id, code: newRegCode(), name, phone: phone || null, age,
+        is_paid: !!evt.isPaid, payment_method: method, payment_status: status, receipt_url: null,
+        attended, attended_at: attended ? nowIso : null, created_at: nowIso
+      };
+      if (supabaseClient) {
+        const { error } = await supabaseClient.from('registrations').insert([row]);
+        if (error) {
+          btn.disabled = false;
+          return regError(String(error.message || '').includes('uq_registrations_event_name_phone') ? DUP : 'No se pudo inscribir: ' + error.message);
+        }
+      }
+      const reg = { id: row.id, eventId: evt.id, code: row.code, name, dni: null, email: null, phone: row.phone, age,
+        isPaid: row.is_paid, paymentMethod: method, paymentStatus: status, receiptUrl: null, attended, createdAt: nowIso };
+      if (!state.registrations.some(r => r.id === reg.id)) state.registrations.unshift(reg);   // el tiempo real puede llegar primero
+      saveLocalData();
+      closeRegistrantModal();
+      renderCurrentEventDetails();
+      showToast(name + ' quedó inscrito(a).', 'success');
+      openPassModal(reg.id);   // se muestra el pase para entregarlo o enviarlo
+    }
+
+    document.getElementById('registrant-form').addEventListener('submit', saveRegistrant);
+
     async function handleCreateEvent(e) {
       if (editingEventId) return handleUpdateEvent(e);
       e.preventDefault();
+      // Se valida antes de bloquear el botón, para que el formulario siga utilizable si hay un error
+      const dlInput = document.getElementById('new-reg-deadline').value || '';
+      const evDate = buildEventDate();
+      if (dlInput && evDate && dlInput > evDate.slice(0, 10)) return showToast('La fecha límite de inscripción no puede ser después del día del evento.', 'warning');
       const btn = document.getElementById('btn-save-event');
       btn.disabled = true;
       btn.innerHTML = `<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> Guardando evento...`;
@@ -1673,6 +2040,8 @@ function closePassModal() {
       const price = isPaid ? parseFloat(document.getElementById('new-price').value) : 0;
       const bankInfo = isPaid ? document.getElementById('new-bank-info').value.trim() : '';
       const desc = document.getElementById('new-desc').value.trim();
+      const autoClose = document.getElementById('new-auto-close').checked;
+      const regDeadline = document.getElementById('new-reg-deadline').value || '';
 
       let driveFolderUrl = '';
       let driveFolderId = '';
@@ -1699,7 +2068,10 @@ function closePassModal() {
         bankInfo,
         description: desc,
         driveFolderUrl,
-        driveFolderId
+        driveFolderId,
+        registrationOpen: true,
+        autoClose,
+        registrationDeadline: regDeadline
       };
 
       // Imagen de portada (opcional): si falla, el evento se crea igual y se avisa
@@ -1726,7 +2098,9 @@ function closePassModal() {
           description: newEvent.description,
           drive_folder_url: newEvent.driveFolderUrl,
           drive_folder_id: newEvent.driveFolderId,
-          ...(newEvent.imageUrl ? { image_url: newEvent.imageUrl } : {})
+          ...(newEvent.imageUrl ? { image_url: newEvent.imageUrl } : {}),
+          ...(newEvent.autoClose ? { auto_close: true } : {}),
+          ...(newEvent.registrationDeadline ? { registration_deadline: newEvent.registrationDeadline } : {})
         }]).then(sbReport('No se pudo guardar el evento en Supabase'));
       }
 

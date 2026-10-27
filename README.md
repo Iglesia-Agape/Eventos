@@ -12,6 +12,8 @@ Es una página estática (sin servidor propio): HTML + JavaScript en GitHub Page
 - **Inscripción pública** (`inscripcion.html?evento=ID`): cada evento tiene su propio enlace. El asistente deja nombre, celular y edad, y recibe un pase con código QR (guardar imagen, WhatsApp, imprimir).
 - **Eventos gratuitos o de pago:** los de pago muestran los canales (BAC, PayPal, POS, efectivo) y piden comprobante cuando corresponde. Las fotos se comprimen en el navegador antes de subirse.
 - **Validación en la entrada:** escáner de QR con la cámara o código manual. Avisa si el pase ya ingresó, si es de otro evento, si el pago está pendiente o en revisión, y **niega el acceso si el pago fue rechazado**.
+- **Cerrar inscripciones:** cada evento tiene un interruptor manual (abierto/cerrado) y, opcionalmente, una **fecha límite de inscripción** (las inscripciones se cierran al terminar ese día, p. ej. una semana antes) y/o cierre automático al comenzar el evento. Ambas son opcionales. El panel y la página pública muestran cuántos días faltan para el cierre. Se aplica en la base de datos, no solo en pantalla. Quien ya se inscribió sigue viendo su pase.
+- **Inscribir y editar desde el panel:** el administrador puede registrar personas en la puerta (aunque el evento esté cerrado o lleno, y sin celular ni edad) y corregir nombre, celular o edad sin borrar y volver a inscribir.
 - **Cupos y duplicados:** el cupo máximo y el nombre + celular repetido se controlan en la base de datos.
 
 ## Archivos
@@ -24,6 +26,7 @@ Es una página estática (sin servidor propio): HTML + JavaScript en GitHub Page
 | `estilos.css` | Tailwind ya compilado (ver nota abajo) |
 | `tailwind.config.js`, `entrada.css` | Archivos para volver a generar `estilos.css` |
 | `supabase_schema.sql` | Esquema completo de la base de datos y sus políticas de seguridad |
+| `migracion_cierre_inscripciones.sql` | Para una base ya existente: agrega el cierre de inscripciones y las altas manuales (se puede repetir sin problema) |
 | `google_apps_script.js` | Código del webhook que guarda comprobantes en Drive |
 | `.github/workflows/mantener-supabase-activo.yml` | Consulta Supabase lunes y jueves para que el plan gratuito no se pause |
 | `Logo.png` | Logo |
