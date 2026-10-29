@@ -14,6 +14,7 @@
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <script defer src="config.js"></script>   <!-- defer: ya no frena la carga de la página; se ejecuta justo antes de inscripcion.js -->
+<script defer src="form-fields.js"></script>
 <link rel="stylesheet" href="estilos.css">
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4"></script>
@@ -100,20 +101,7 @@
     </section>
 
     <form id="reg-form" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4" novalidate>
-      <div>
-        <label for="f-name" class="block text-xs font-medium text-slate-300 mb-1">Nombre y apellido *</label>
-        <input id="f-name" type="text" autocomplete="name" maxlength="120" placeholder="Ej. Carlos Mendoza" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 text-base sm:text-sm text-white focus:outline-none focus:border-indigo-500">
-      </div>
-      <div class="grid grid-cols-[2fr_1fr] gap-3">
-        <div>
-          <label for="f-phone" class="block text-xs font-medium text-slate-300 mb-1">Celular *</label>
-          <input id="f-phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="20" placeholder="9999-9999" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 text-base sm:text-sm text-white focus:outline-none focus:border-indigo-500">
-        </div>
-        <div>
-          <label for="f-age" class="block text-xs font-medium text-slate-300 mb-1">Edad *</label>
-          <input id="f-age" type="number" inputmode="numeric" min="1" max="120" placeholder="Ej. 25" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 text-base sm:text-sm text-white focus:outline-none focus:border-indigo-500">
-        </div>
-      </div>
+      <div id="dyn-fields" class="space-y-4"></div>
 
       <div id="pay-section" class="hidden space-y-3 pt-3 border-t border-slate-800">
         <div>

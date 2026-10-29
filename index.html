@@ -13,6 +13,7 @@
 
   <!-- Archivo de Configuración Centralizada (Webhook y Supabase) -->
   <script src="config.js"></script>
+  <script src="form-fields.js"></script>
 
   <!-- Tailwind CSS -->
   <link rel="stylesheet" href="estilos.css">
@@ -243,7 +244,7 @@
               <div class="flex flex-wrap items-center gap-2">
                 <div class="relative">
                   <i data-lucide="search" class="w-4 h-4 text-slate-500 absolute left-3 top-2.5"></i>
-                  <input type="text" id="table-search" oninput="renderTable()" placeholder="Buscar código, celular o nombre..." class="bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 w-56 sm:w-64">
+                  <input type="text" id="table-search" oninput="renderTable()" placeholder="Buscar código, nombre o datos..." class="bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 w-56 sm:w-64">
                 </div>
                 <select id="table-filter-status" onchange="renderTable()" class="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-indigo-500">
                   <option value="all">Todos los estados</option>
@@ -317,7 +318,7 @@
         <form onsubmit="handleManualCheckin(event)" class="flex gap-2">
           <div class="relative flex-1">
             <i data-lucide="qr-code" class="w-5 h-5 text-slate-500 absolute left-3 top-3"></i>
-            <input type="text" id="checkin-input" placeholder="Ingresa o escanea código (Ej: EVT-A89B12 o A89B12)" class="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-sm font-mono text-white focus:outline-none focus:border-indigo-500">
+            <input type="text" id="checkin-input" class="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-sm font-mono text-white focus:outline-none focus:border-indigo-500">
           </div>
           <button type="submit" class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-sm rounded-xl flex items-center gap-2 transition shadow-lg shadow-emerald-600/20">
             <i data-lucide="check-circle" class="w-4 h-4"></i> Validar
@@ -357,7 +358,7 @@
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="sm:col-span-2">
               <label class="block text-xs font-medium text-slate-300 mb-1">Nombre del Evento *</label>
-              <input type="text" id="new-title" required placeholder="Ej: Congreso Juvenil Ágape 2026" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+              <input type="text" id="new-title" required class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
             </div>
 
             <div class="sm:col-span-2">
@@ -433,9 +434,21 @@
               <p class="text-[10px] text-slate-400 mt-1">Si la eliges, las inscripciones se cierran al terminar ese día (por ejemplo, una semana antes del evento). Si la dejas vacía, no hay fecha límite. Tú puedes seguir inscribiendo personas desde el panel.</p>
             </div>
 
+            <div class="sm:col-span-2 pt-2 border-t border-slate-800 space-y-3">
+              <div>
+                <h3 class="text-xs font-bold uppercase tracking-wider text-indigo-400">Campos del formulario de inscripción</h3>
+                <p class="text-[10px] text-slate-400 mt-1">Puedes cambiar el nombre de Nombre, Celular y Edad, ocultar celular o edad si no aplican, y agregar campos extra. En una lista, la persona ve varias opciones y elige una.</p>
+              </div>
+              <div id="form-fields-editor" class="space-y-2"></div>
+              <div class="flex flex-wrap gap-2">
+                <button type="button" onclick="addExtraFormField('text')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-medium rounded-lg border border-slate-700">+ Campo de texto</button>
+                <button type="button" onclick="addExtraFormField('select')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-medium rounded-lg border border-slate-700">+ Lista (elegir 1)</button>
+              </div>
+            </div>
+
             <div class="sm:col-span-2">
               <label class="block text-xs font-medium text-slate-300 mb-1">Descripción Breve o Instrucciones del Evento</label>
-              <textarea id="new-desc" rows="2" placeholder="Detalles, lugar, expositores o instrucciones generales para los asistentes..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"></textarea>
+              <textarea id="new-desc" rows="2" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"></textarea>
             </div>
           </div>
 
@@ -552,20 +565,7 @@
           <h3 id="reg-form-title" class="text-base font-bold text-white">Inscribir persona</h3>
           <p id="reg-form-subtitle" class="text-xs text-slate-400 mt-0.5"></p>
         </div>
-        <div>
-          <label for="reg-name" class="block text-xs font-medium text-slate-300 mb-1">Nombre y apellido *</label>
-          <input id="reg-name" type="text" maxlength="120" autocomplete="off" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500">
-        </div>
-        <div class="grid grid-cols-[2fr_1fr] gap-3">
-          <div>
-            <label for="reg-phone" class="block text-xs font-medium text-slate-300 mb-1">Celular (opcional)</label>
-            <input id="reg-phone" type="tel" maxlength="20" autocomplete="off" placeholder="9999-9999" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500">
-          </div>
-          <div>
-            <label for="reg-age" class="block text-xs font-medium text-slate-300 mb-1">Edad</label>
-            <input id="reg-age" type="number" min="1" max="120" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500">
-          </div>
-        </div>
+        <div id="reg-dyn-fields" class="space-y-3"></div>
         <div id="reg-pay-section" class="hidden space-y-3 pt-3 border-t border-slate-800">
           <div>
             <label for="reg-method" class="block text-xs font-medium text-slate-300 mb-1">Método de pago</label>
@@ -871,6 +871,8 @@
 // INICIALIZACIÓN PRINCIPAL
     document.addEventListener('DOMContentLoaded', async () => {
       bindTableActions();
+      bindFieldsEditor();
+      renderFieldsEditor();
       document.getElementById('login-form')?.addEventListener('submit', handleAdminLogin);
 
       // Inicializa Supabase; el panel solo se muestra tras iniciar sesión
@@ -934,6 +936,26 @@
       }
     }
 
+    function mapEventFromDb(e) {
+      return {
+        id: e.id,
+        title: e.title,
+        date: e.date,
+        capacity: e.capacity,
+        isPaid: e.is_paid,
+        price: parseFloat(e.price) || 0,
+        bankInfo: e.bank_info,
+        description: e.description,
+        driveFolderUrl: e.drive_folder_url,
+        driveFolderId: e.drive_folder_id,
+        imageUrl: e.image_url,
+        registrationOpen: e.registration_open !== false,
+        autoClose: !!e.auto_close,
+        registrationDeadline: e.registration_deadline || '',
+        formFields: FormFields.normalizeFormFields(e.form_fields)
+      };
+    }
+
         async function fetchAllDataFromSupabase() {
       if (!supabaseClient) return;
       try {
@@ -942,22 +964,7 @@
           showToast('No se pudieron cargar los eventos: ' + errEvt.message, 'error');
         } else if (dbEvents) {
           // La nube manda: si ya no hay eventos allá, tampoco se muestran aquí
-          state.events = dbEvents.map(e => ({
-            id: e.id,
-            title: e.title,
-            date: e.date,
-            capacity: e.capacity,
-            isPaid: e.is_paid,
-            price: parseFloat(e.price) || 0,
-            bankInfo: e.bank_info,
-            description: e.description,
-            driveFolderUrl: e.drive_folder_url,
-            driveFolderId: e.drive_folder_id,
-            imageUrl: e.image_url,
-            registrationOpen: e.registration_open !== false,
-            autoClose: !!e.auto_close,
-            registrationDeadline: e.registration_deadline || ''
-          }));
+          state.events = dbEvents.map(mapEventFromDb);
         }
 
         const { data: dbRegs, error: errReg } = await supabaseClient.from('registrations').select('*').order('created_at', { ascending: false });
@@ -982,22 +989,7 @@
 
     function handleEventRealtime(payload) {
       if (payload.eventType === 'INSERT') {
-        const newEvt = {
-          id: payload.new.id,
-          title: payload.new.title,
-          date: payload.new.date,
-          capacity: payload.new.capacity,
-          isPaid: payload.new.is_paid,
-          price: parseFloat(payload.new.price) || 0,
-          bankInfo: payload.new.bank_info,
-          description: payload.new.description,
-          driveFolderUrl: payload.new.drive_folder_url,
-          driveFolderId: payload.new.drive_folder_id,
-          imageUrl: payload.new.image_url,
-          registrationOpen: payload.new.registration_open !== false,
-          autoClose: !!payload.new.auto_close,
-          registrationDeadline: payload.new.registration_deadline || ''
-        };
+        const newEvt = mapEventFromDb(payload.new);
         if (!state.events.some(e => e.id === newEvt.id)) {
           state.events.unshift(newEvt);
           saveLocalData();
@@ -1008,13 +1000,7 @@
         const u = payload.new;
         const local = state.events.find(e => e.id === u.id);
         if (local) {
-          Object.assign(local, {
-            title: u.title, date: u.date, capacity: u.capacity, isPaid: u.is_paid, price: parseFloat(u.price) || 0,
-            bankInfo: u.bank_info, description: u.description, driveFolderUrl: u.drive_folder_url,
-            driveFolderId: u.drive_folder_id, imageUrl: u.image_url,
-            registrationOpen: u.registration_open !== false, autoClose: !!u.auto_close,
-            registrationDeadline: u.registration_deadline || ''
-          });
+          Object.assign(local, mapEventFromDb(u));
           saveLocalData();
           if (!state.isPublicMode && editingEventId !== u.id) { renderEventsList(); renderCurrentEventDetails(); }
         }
@@ -1075,7 +1061,8 @@
         paymentStatus: r.payment_status,
         receiptUrl: r.receipt_url,
         attended: r.attended,
-        createdAt: r.created_at
+        createdAt: r.created_at,
+        extraData: (r.extra_data && typeof r.extra_data === 'object' && !Array.isArray(r.extra_data)) ? r.extra_data : {}
       };
     }
 
@@ -1266,13 +1253,22 @@
       document.getElementById('table-subtitle').innerText = paid
         ? 'Verifica comprobantes bancarios en Google Drive y actualiza pagos directamente desde el selector.'
         : 'Lista de participantes inscritos en este evento.';
+      const visFields = FormFields.visibleFields(evt && evt.formFields);
+      const showPhone = visFields.some(f => f.key === 'phone');
+      const showAge = visFields.some(f => f.key === 'age');
+      const extras = visFields.filter(f => f.key === 'extra');
+      const nameLabel = (visFields.find(f => f.key === 'name') || {}).label || 'Nombre y apellido';
+      const phoneLabel = (visFields.find(f => f.key === 'phone') || {}).label || 'Celular';
+      const ageLabel = (visFields.find(f => f.key === 'age') || {}).label || 'Edad';
+      const colCount = 4 + (paid ? 3 : 0) + (showPhone ? 1 : 0) + (showAge ? 1 : 0) + extras.length;
       document.getElementById('table-head').innerHTML = `<tr>
         <th class="py-3 px-4">Código</th>
         <th class="py-3 px-4">Asistencia</th>
         ${paid ? '<th class="py-3 px-4">Estado Pago</th>' : ''}
-        <th class="py-3 px-4">Nombre y apellido</th>
-        <th class="py-3 px-4">Celular</th>
-        <th class="py-3 px-4">Edad</th>
+        <th class="py-3 px-4">${esc(nameLabel)}</th>
+        ${showPhone ? `<th class="py-3 px-4">${esc(phoneLabel)}</th>` : ''}
+        ${showAge ? `<th class="py-3 px-4">${esc(ageLabel)}</th>` : ''}
+        ${extras.map(f => `<th class="py-3 px-4">${esc(f.label)}</th>`).join('')}
         ${paid ? '<th class="py-3 px-4">Método Seleccionado</th><th class="py-3 px-4">Comprobante Drive</th>' : ''}
         <th class="py-3 px-4 text-right">Acciones</th>
       </tr>`;
@@ -1284,13 +1280,15 @@
       let regs = state.registrations.filter(r => r.eventId === state.currentEventId);
 
       if (query) {
-        regs = regs.filter(r =>
-          (r.name || '').toLowerCase().includes(query) ||
-          (r.code || '').toLowerCase().includes(query) ||
-          String(r.phone || '').toLowerCase().includes(query) ||
-          (queryDigits.length >= 3 && String(r.phone || '').replace(/\D/g, '').includes(queryDigits)) ||
-          (r.dni || '').toLowerCase().includes(query)
-        );
+        regs = regs.filter(r => {
+          const extraTxt = Object.values(r.extraData || {}).join(' ').toLowerCase();
+          return (r.name || '').toLowerCase().includes(query) ||
+            (r.code || '').toLowerCase().includes(query) ||
+            String(r.phone || '').toLowerCase().includes(query) ||
+            extraTxt.includes(query) ||
+            (queryDigits.length >= 3 && String(r.phone || '').replace(/\D/g, '').includes(queryDigits)) ||
+            (r.dni || '').toLowerCase().includes(query);
+        });
       }
 
       if (statusFilter !== 'all') {
@@ -1302,7 +1300,7 @@
       }
 
       if (regs.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="${paid ? 9 : 6}" class="py-8 text-center text-slate-500">No hay inscripciones registradas que coincidan con la búsqueda.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="${colCount}" class="py-8 text-center text-slate-500">No hay inscripciones registradas que coincidan con la búsqueda.</td></tr>`;
         return;
       }
 
@@ -1360,8 +1358,9 @@
             ${legacy}
           </td>
 
-          <td class="py-3 px-4 text-slate-300 font-mono text-[11px]">${esc(reg.phone || '—')}</td>
-          <td class="py-3 px-4 text-slate-300">${esc(reg.age ?? '—')}</td>
+          ${showPhone ? `<td class="py-3 px-4 text-slate-300 font-mono text-[11px]">${esc(reg.phone || '—')}</td>` : ''}
+          ${showAge ? `<td class="py-3 px-4 text-slate-300">${esc(reg.age ?? '—')}</td>` : ''}
+          ${extras.map(f => `<td class="py-3 px-4 text-slate-300 text-[11px]">${esc((reg.extraData && reg.extraData[f.id]) || '—')}</td>`).join('')}
           ${payCells2}
           <td class="py-3 px-4 text-right">
             <div class="flex items-center justify-end gap-1.5">
@@ -1705,6 +1704,143 @@ function closePassModal() {
       }
     }
 
+    function collectFormFieldsForSave() {
+      const fields = FormFields.normalizeFormFields(draftFormFields);
+      const bad = fields.find(f => f.type === 'select' && (!f.options || f.options.length < 2));
+      if (bad) return { error: 'La lista "' + bad.label + '" necesita al menos 2 opciones (una por línea).' };
+      const empty = fields.find(f => f.key === 'extra' && !String(f.label || '').trim());
+      if (empty) return { error: 'Escribe el nombre de cada campo extra.' };
+      return { fields };
+    }
+
+    function addExtraFormField(type) {
+      if (FormFields.extraFields(draftFormFields).length >= FormFields.MAX_EXTRA) {
+        return showToast('Máximo ' + FormFields.MAX_EXTRA + ' campos extra.', 'warning');
+      }
+      draftFormFields.push({
+        id: FormFields.newFieldId(),
+        key: 'extra',
+        type: type === 'select' ? 'select' : 'text',
+        label: type === 'select' ? 'Lista' : 'Campo extra',
+        required: false,
+        enabled: true,
+        options: type === 'select' ? [] : undefined
+      });
+      renderFieldsEditor();
+    }
+
+    function bindFieldsEditor() {
+      const box = document.getElementById('form-fields-editor');
+      if (!box || box.dataset.bound) return;
+      box.dataset.bound = '1';
+      box.addEventListener('input', onFieldsEditorChange);
+      box.addEventListener('change', onFieldsEditorChange);
+      box.addEventListener('click', (e) => {
+        const del = e.target.closest('[data-del]');
+        if (!del) return;
+        draftFormFields = draftFormFields.filter(f => f.id !== del.getAttribute('data-del'));
+        renderFieldsEditor();
+      });
+    }
+
+    function onFieldsEditorChange(e) {
+      const el = e.target;
+      const id = el.dataset.fid;
+      if (!id) return;
+      const f = draftFormFields.find(x => x.id === id);
+      if (!f) return;
+      const k = el.dataset.k;
+      if (k === 'label') f.label = el.value;
+      else if (k === 'required') f.required = el.checked;
+      else if (k === 'enabled') {
+        f.enabled = el.checked;
+        if (!f.enabled) f.required = false;
+        renderFieldsEditor();
+      } else if (k === 'options') f.options = String(el.value || '').split('\n');
+    }
+
+    function renderFieldsEditor() {
+      const box = document.getElementById('form-fields-editor');
+      if (!box) return;
+      draftFormFields = FormFields.normalizeFormFields(draftFormFields);
+      box.innerHTML = '';
+      draftFormFields.forEach(field => {
+        const card = document.createElement('div');
+        card.className = 'p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2';
+        const sys = field.key !== 'extra';
+        const typeTxt = field.type === 'select' ? 'Lista' : field.key === 'phone' ? 'Celular' : (field.key === 'age' ? 'Edad' : 'Texto');
+
+        const top = document.createElement('div');
+        top.className = 'flex items-center justify-between gap-2';
+        const badge = document.createElement('span');
+        badge.className = 'text-[10px] font-semibold uppercase tracking-wide ' + (sys ? 'text-indigo-400' : 'text-slate-400');
+        badge.textContent = sys ? ('Fijo · ' + typeTxt) : typeTxt;
+        top.appendChild(badge);
+        if (!sys) {
+          const del = document.createElement('button');
+          del.type = 'button';
+          del.setAttribute('data-del', field.id);
+          del.className = 'text-[11px] text-rose-400 hover:text-rose-300';
+          del.textContent = 'Quitar';
+          top.appendChild(del);
+        }
+        card.appendChild(top);
+
+        const lab = document.createElement('input');
+        lab.type = 'text';
+        lab.maxLength = 80;
+        lab.value = field.label;
+        lab.dataset.fid = field.id;
+        lab.dataset.k = 'label';
+        lab.className = 'w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-indigo-500';
+        card.appendChild(lab);
+
+        const row = document.createElement('div');
+        row.className = 'flex flex-wrap items-center gap-3 text-[11px] text-slate-300';
+        if (field.key === 'phone' || field.key === 'age') {
+          const showL = document.createElement('label');
+          showL.className = 'inline-flex items-center gap-1.5 cursor-pointer';
+          const showC = document.createElement('input');
+          showC.type = 'checkbox';
+          showC.checked = field.enabled !== false;
+          showC.dataset.fid = field.id;
+          showC.dataset.k = 'enabled';
+          showC.className = 'rounded border-slate-700 bg-slate-950 accent-indigo-500';
+          showL.appendChild(showC);
+          showL.appendChild(document.createTextNode('Mostrar en el formulario'));
+          row.appendChild(showL);
+        }
+        const reqL = document.createElement('label');
+        reqL.className = 'inline-flex items-center gap-1.5 cursor-pointer';
+        const reqC = document.createElement('input');
+        reqC.type = 'checkbox';
+        reqC.checked = !!field.required;
+        reqC.disabled = field.key === 'name' || field.enabled === false;
+        reqC.dataset.fid = field.id;
+        reqC.dataset.k = 'required';
+        reqC.className = 'rounded border-slate-700 bg-slate-950 accent-indigo-500';
+        reqL.appendChild(reqC);
+        reqL.appendChild(document.createTextNode(field.key === 'name' ? 'Obligatorio (pase)' : 'Obligatorio'));
+        row.appendChild(reqL);
+        card.appendChild(row);
+
+        if (field.type === 'select') {
+          const hint = document.createElement('p');
+          hint.className = 'text-[10px] text-slate-400';
+          hint.textContent = 'Opciones de la lista (una por línea). La persona verá estas opciones y elegirá una.';
+          const ta = document.createElement('textarea');
+          ta.rows = 3;
+          ta.value = (field.options || []).join('\n');
+          ta.dataset.fid = field.id;
+          ta.dataset.k = 'options';
+          ta.className = 'w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-indigo-500';
+          card.appendChild(hint);
+          card.appendChild(ta);
+        }
+        box.appendChild(card);
+      });
+    }
+
     // Une fecha + hora (1-12) + a. m./p. m. en el formato que ya usa el sistema: AAAA-MM-DDTHH:MM (24 h)
     function buildEventDate() {
       const day = document.getElementById('new-date').value;
@@ -1723,6 +1859,7 @@ function closePassModal() {
     const IMAGE_BUCKET = 'event-images';
     let editingEventId = null;     // id del evento que se está editando (null = creando uno nuevo)
     let enteringEdit = false;
+    let draftFormFields = FormFields.defaultFormFields();
     let pendingImageFile = null;   // imagen elegida que aún no se ha subido
     let removeImageFlag = false;   // el administrador quitó la imagen actual
 
@@ -1846,6 +1983,8 @@ function closePassModal() {
       document.getElementById('new-desc').value = evt.description || '';
       document.getElementById('new-auto-close').checked = !!evt.autoClose;
       document.getElementById('new-reg-deadline').value = evt.registrationDeadline || '';
+      draftFormFields = FormFields.normalizeFormFields(evt.formFields);
+      renderFieldsEditor();
 
       pendingImageFile = null; removeImageFlag = false;
       document.getElementById('new-image-file').value = '';
@@ -1857,6 +1996,8 @@ function closePassModal() {
     function exitEditMode() {
       editingEventId = null;
       document.getElementById('create-event-form').reset();
+      draftFormFields = FormFields.defaultFormFields();
+      renderFieldsEditor();
       document.getElementById('new-is-paid').disabled = false;
       document.getElementById('new-capacity').min = '1';
       document.querySelectorAll('#new-minute option[data-extra]').forEach(o => o.remove());
@@ -1887,6 +2028,8 @@ function closePassModal() {
 
       const autoClose = document.getElementById('new-auto-close').checked;
       const regDeadline = document.getElementById('new-reg-deadline').value || '';
+      const fieldsPack = collectFormFieldsForSave();
+      if (fieldsPack.error) return showToast(fieldsPack.error, 'warning');
       if (!title) return showToast('Escribe el nombre del evento.', 'warning');
       if (!date) return showToast('Completa la fecha, la hora y a. m./p. m.', 'warning');
       if (regDeadline && regDeadline > date.slice(0, 10)) return showToast('La fecha límite de inscripción no puede ser después del día del evento.', 'warning');
@@ -1898,7 +2041,7 @@ function closePassModal() {
       btn.innerHTML = `<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> Guardando cambios...`;
       lucide.createIcons();
 
-      const changes = { title, date, capacity, price, bank_info: bankInfo, description: desc };
+      const changes = { title, date, capacity, price, bank_info: bankInfo, description: desc, form_fields: fieldsPack.fields };
       if (autoClose !== !!evt.autoClose) changes.auto_close = autoClose;
       if (regDeadline !== (evt.registrationDeadline || '')) changes.registration_deadline = regDeadline || null;
       let newImageUrl = evt.imageUrl || '';
@@ -1927,7 +2070,7 @@ function closePassModal() {
       }
 
       const oldImage = evt.imageUrl;
-      Object.assign(evt, { title, date, capacity, price, bankInfo, description: desc, imageUrl: newImageUrl, autoClose, registrationDeadline: regDeadline });
+      Object.assign(evt, { title, date, capacity, price, bankInfo, description: desc, imageUrl: newImageUrl, autoClose, registrationDeadline: regDeadline, formFields: fieldsPack.fields });
       if ('image_url' in changes && oldImage && oldImage !== newImageUrl) removeStoredImage(oldImage);
       saveLocalData();
 
@@ -2063,9 +2206,16 @@ function closePassModal() {
       const closed = registrationStatus(evt) !== 'open';
       document.getElementById('reg-form-subtitle').innerText = 'Evento: ' + evt.title +
         (!reg && closed ? ' (inscripciones cerradas: como administrador igual puedes inscribir)' : '');
-      document.getElementById('reg-name').value = reg ? reg.name : '';
-      document.getElementById('reg-phone').value = reg ? (reg.phone || '') : '';
-      document.getElementById('reg-age').value = reg && reg.age != null ? reg.age : '';
+      FormFields.renderFormFields(document.getElementById('reg-dyn-fields'), evt.formFields, {
+        prefix: 'reg-',
+        compact: true,
+        values: {
+          name: reg ? reg.name : '',
+          phone: reg ? (reg.phone || '') : '',
+          age: reg && reg.age != null ? reg.age : '',
+          extraData: reg ? (reg.extraData || {}) : {}
+        }
+      });
 
       document.getElementById('reg-pay-section').classList.toggle('hidden', !evt.isPaid);
       if (evt.isPaid) {
@@ -2079,7 +2229,8 @@ function closePassModal() {
       document.getElementById('btn-save-registrant').innerText = reg ? 'Guardar cambios' : 'Inscribir';
       document.getElementById('modal-registrant').classList.remove('hidden');
       lucide.createIcons();
-      document.getElementById('reg-name').focus();   // al instante: un enfoque con retraso le quitaría el cursor a otro campo ya en uso
+      const first = document.querySelector('#reg-dyn-fields input, #reg-dyn-fields select');
+      if (first) first.focus();
     }
 
     function closeRegistrantModal() {
@@ -2093,19 +2244,11 @@ function closePassModal() {
       if (!evt) return closeRegistrantModal();
       regError('');
 
-      const name = document.getElementById('reg-name').value.trim().replace(/\s+/g, ' ');
-      const phone = document.getElementById('reg-phone').value.trim();
-      const ageRaw = document.getElementById('reg-age').value.trim();
-      const age = ageRaw === '' ? null : parseInt(ageRaw, 10);
+      const parsed = FormFields.readFormFields(evt.formFields, 'reg-', true);
+      if (parsed.error) return regError(parsed.error);
+      const name = parsed.name, phone = parsed.phone, age = parsed.age, extraData = parsed.extraData;
       const method = evt.isPaid ? document.getElementById('reg-method').value : 'Gratuito';
       const status = evt.isPaid ? document.getElementById('reg-status').value : 'Exento';
-
-      if (name.length < 3) return regError('Escribe el nombre de la persona.');
-      if (phone) {
-        const digits = phone.replace(/\D/g, '');
-        if (digits.length < 8 || digits.length > 15) return regError('El celular debe tener entre 8 y 15 dígitos (o déjalo vacío).');
-      }
-      if (age !== null && (!Number.isInteger(age) || age < 1 || age > 120)) return regError('La edad debe estar entre 1 y 120 (o déjala vacía).');
 
       // Misma persona (nombre + celular) en este evento
       if (phone && state.registrations.some(r => r.eventId === evt.id && r.id !== editingRegId && r.phone &&
@@ -2121,7 +2264,7 @@ function closePassModal() {
       if (editingRegId) {
         const reg = state.registrations.find(r => r.id === editingRegId);
         if (!reg) { btn.disabled = false; return closeRegistrantModal(); }
-        const patch = { name, phone: phone || null, age };
+        const patch = { name, phone: phone || null, age, extra_data: extraData };
         if (evt.isPaid) { patch.payment_method = method; patch.payment_status = status; }
         if (supabaseClient) {
           const { data, error } = await supabaseClient.from('registrations').update(patch).eq('id', reg.id).select('id');
@@ -2131,7 +2274,7 @@ function closePassModal() {
           }
           if (!data || data.length === 0) { btn.disabled = false; return regError('No se pudo guardar. Cierra sesión y vuelve a entrar, e inténtalo de nuevo.'); }
         }
-        Object.assign(reg, { name, phone: phone || null, age });
+        Object.assign(reg, { name, phone: phone || null, age, extraData });
         if (evt.isPaid) Object.assign(reg, { paymentMethod: method, paymentStatus: status });
         saveLocalData();
         closeRegistrantModal();
@@ -2149,7 +2292,8 @@ function closePassModal() {
         id: 'reg-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
         event_id: evt.id, code: newRegCode(), name, phone: phone || null, age,
         is_paid: !!evt.isPaid, payment_method: method, payment_status: status, receipt_url: null,
-        attended, attended_at: attended ? nowIso : null, created_at: nowIso
+        attended, attended_at: attended ? nowIso : null, created_at: nowIso,
+        extra_data: extraData
       };
       if (supabaseClient) {
         const { error } = await supabaseClient.from('registrations').insert([row]);
@@ -2159,7 +2303,7 @@ function closePassModal() {
         }
       }
       const reg = { id: row.id, eventId: evt.id, code: row.code, name, dni: null, email: null, phone: row.phone, age,
-        isPaid: row.is_paid, paymentMethod: method, paymentStatus: status, receiptUrl: null, attended, createdAt: nowIso };
+        isPaid: row.is_paid, paymentMethod: method, paymentStatus: status, receiptUrl: null, attended, createdAt: nowIso, extraData };
       if (!state.registrations.some(r => r.id === reg.id)) state.registrations.unshift(reg);   // el tiempo real puede llegar primero
       saveLocalData();
       closeRegistrantModal();
@@ -2177,6 +2321,8 @@ function closePassModal() {
       const dlInput = document.getElementById('new-reg-deadline').value || '';
       const evDate = buildEventDate();
       if (dlInput && evDate && dlInput > evDate.slice(0, 10)) return showToast('La fecha límite de inscripción no puede ser después del día del evento.', 'warning');
+      const fieldsPack = collectFormFieldsForSave();
+      if (fieldsPack.error) return showToast(fieldsPack.error, 'warning');
       const btn = document.getElementById('btn-save-event');
       btn.disabled = true;
       btn.innerHTML = `<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> Guardando evento...`;
@@ -2221,7 +2367,8 @@ function closePassModal() {
         driveFolderId,
         registrationOpen: true,
         autoClose,
-        registrationDeadline: regDeadline
+        registrationDeadline: regDeadline,
+        formFields: fieldsPack.fields
       };
 
       // Imagen de portada (opcional): si falla, el evento se crea igual y se avisa
@@ -2246,7 +2393,8 @@ function closePassModal() {
           drive_folder_id: newEvent.driveFolderId,
           ...(newEvent.imageUrl ? { image_url: newEvent.imageUrl } : {}),
           ...(newEvent.autoClose ? { auto_close: true } : {}),
-          ...(newEvent.registrationDeadline ? { registration_deadline: newEvent.registrationDeadline } : {})
+          ...(newEvent.registrationDeadline ? { registration_deadline: newEvent.registrationDeadline } : {}),
+          form_fields: newEvent.formFields
         }]);
         if (insErr) {
           if (newEvent.imageUrl) removeStoredImage(newEvent.imageUrl);
@@ -2264,6 +2412,8 @@ function closePassModal() {
       btn.innerHTML = `<i data-lucide="check" class="w-4 h-4"></i> Crear Evento`;
 
       document.getElementById('create-event-form').reset();
+      draftFormFields = FormFields.defaultFormFields();
+      renderFieldsEditor();
       pendingImageFile = null; removeImageFlag = false; showEventImagePreview('');
       togglePaidOptions();
       renderEventsList();
@@ -2514,11 +2664,22 @@ function closePassModal() {
       const evtCsv = state.events.find(e => e.id === state.currentEventId);
       const paidCsv = !!(evtCsv && evtCsv.isPaid);
       const legacyCsv = regs.some(r => r.dni || r.email); // inscripciones antiguas
-      const cols = ['Codigo', 'Asistencia'].concat(paidCsv ? ['EstadoPago'] : [], ['Nombre', 'Celular', 'Edad'],
+      const visCsv = FormFields.visibleFields(evtCsv && evtCsv.formFields);
+      const extraCsv = visCsv.filter(f => f.key === 'extra');
+      const nameCsv = (visCsv.find(f => f.key === 'name') || {}).label || 'Nombre';
+      const phoneCsv = visCsv.some(f => f.key === 'phone');
+      const ageCsv = visCsv.some(f => f.key === 'age');
+      const cols = ['Codigo', 'Asistencia'].concat(paidCsv ? ['EstadoPago'] : [], [nameCsv],
+        phoneCsv ? [(visCsv.find(f => f.key === 'phone') || {}).label || 'Celular'] : [],
+        ageCsv ? [(visCsv.find(f => f.key === 'age') || {}).label || 'Edad'] : [],
+        extraCsv.map(f => f.label),
         paidCsv ? ['MetodoPago', 'ComprobanteDrive'] : [], ['FechaRegistro'], legacyCsv ? ['DNI', 'Email'] : []);
       let csv = '\uFEFF' + cols.join(',') + '\n';
       regs.forEach(r => {
-        const row = [r.code, r.attended ? 'LLEGO' : 'PENDIENTE'].concat(paidCsv ? [r.paymentStatus] : [], [r.name, r.phone || '', r.age ?? ''],
+        const row = [r.code, r.attended ? 'LLEGO' : 'PENDIENTE'].concat(paidCsv ? [r.paymentStatus] : [], [r.name],
+          phoneCsv ? [r.phone || ''] : [],
+          ageCsv ? [r.age ?? ''] : [],
+          extraCsv.map(f => (r.extraData && r.extraData[f.id]) || ''),
           paidCsv ? [r.paymentMethod, r.receiptUrl || ''] : [], [r.createdAt || ''], legacyCsv ? [r.dni || '', r.email || ''] : []);
         csv += row.map(csvCell).join(',') + '\n';
       });

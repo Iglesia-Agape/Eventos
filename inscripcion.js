@@ -41,14 +41,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Solo se descarga ESTE evento (nunca la lista de inscritos)
   const COLS = 'id,title,date,capacity,is_paid,price,bank_info,description,drive_folder_id';
-  // Se prueban de más a menos columnas, por si alguna (imagen, cierre de inscripciones) aún no existe en la base
+  // Se prueban de más a menos columnas, por si alguna (imagen, cierre de inscripciones, campos) aún no existe en la base
   let data = null, error = null;
-  for (const extra of [',image_url,registration_open,auto_close,registration_deadline', ',image_url,registration_open,auto_close', ',image_url', '']) {
+  for (const extra of [',image_url,registration_open,auto_close,registration_deadline,form_fields', ',image_url,registration_open,auto_close,registration_deadline', ',image_url,registration_open,auto_close', ',image_url', '']) {
     ({ data, error } = await sb.from('events').select(COLS + extra).eq('id', id).maybeSingle());
     if (!error) break;
   }
   if (error || !data) return showMsg('🔍', 'Evento no encontrado', 'El enlace es inválido o el evento ya no está disponible.');
-  evt = { id: data.id, title: data.title, date: data.date, capacity: data.capacity, isPaid: data.is_paid, price: parseFloat(data.price) || 0, description: data.description, driveFolderId: data.drive_folder_id, imageUrl: data.image_url || '', registrationOpen: data.registration_open !== false, autoClose: !!data.auto_close, registrationDeadline: data.registration_deadline || '' };
+  evt = { id: data.id, title: data.title, date: data.date, capacity: data.capacity, isPaid: data.is_paid, price: parseFloat(data.price) || 0, description: data.description, driveFolderId: data.drive_folder_id, imageUrl: data.image_url || '', registrationOpen: data.registration_open !== false, autoClose: !!data.auto_close, registrationDeadline: data.registration_deadline || '', formFields: (window.FormFields ? FormFields.normalizeFormFields(data.form_fields) : []) };
 
   myPasses = loadPasses(); myPass = myPasses.length ? myPasses[myPasses.length - 1] : null;
   // La imagen del evento empieza a descargarse YA, mientras se consultan los cupos (antes esperaba a que terminara esa consulta)
@@ -158,6 +158,7 @@ function renderEvent(spots) {
   $('pay-channels').classList.toggle('hidden', !evt.isPaid);
   $('pay-section').classList.toggle('hidden', !evt.isPaid);
   $('btn-submit').textContent = evt.isPaid ? 'Completar inscripción y obtener pase QR' : 'Confirmar asistencia y obtener pase QR';
+  if (window.FormFields) FormFields.renderFormFields($('dyn-fields'), evt.formFields, { prefix: 'f-' });
   toggleProof();
 }
 
@@ -213,14 +214,11 @@ function compressImageFile(file, maxWidth = 1600, quality = 0.8) {
 $('reg-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   formError('');
-  const name = $('f-name').value.trim().replace(/\s+/g, ' '), phone = $('f-phone').value.trim(), age = parseInt($('f-age').value, 10);
+  const parsed = FormFields.readFormFields(evt.formFields, 'f-', false);
+  if (parsed.error) return formError(parsed.error);
+  const name = parsed.name, phone = parsed.phone, age = parsed.age, extraData = parsed.extraData;
   const method = evt.isPaid ? $('f-method').value : 'Gratuito';
   const file = $('f-proof').files[0];
-
-  if (name.length < 3 || name.split(' ').length < 2) return formError('Escribe tu nombre y apellido.');
-  const phoneDigits = phone.replace(/\D/g, '');
-  if (phoneDigits.length < 8 || phoneDigits.length > 15) return formError('Escribe un número de celular válido (8 dígitos).');
-  if (!Number.isInteger(age) || age < 1 || age > 120) return formError('Escribe tu edad (entre 1 y 120 años).');
   if (needsProof()) {
     if (!file) return formError('Adjunta el comprobante o captura de tu pago.');
     if (!(file.type.startsWith('image/') || file.type === 'application/pdf')) return formError('El comprobante debe ser una foto o un PDF.');
@@ -231,7 +229,7 @@ $('reg-form').addEventListener('submit', async (e) => {
   btn.disabled = true; prog.classList.remove('hidden');
   try {
     if ((await registrationsOpen()) === false) return showClosed();
-    if (await alreadyRegistered(name, phone)) return formError(DUP_MSG);
+    if (phone && await alreadyRegistered(name, phone)) return formError(DUP_MSG);
 
     // Volver a revisar cupos justo antes de inscribir
     const spots = await remainingSpots();
@@ -260,11 +258,17 @@ $('reg-form').addEventListener('submit', async (e) => {
 
     progText.textContent = 'Generando tu pase digital...';
     const reg = { id: 'reg-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6), eventId: evt.id, code, name, phone, age, isPaid: evt.isPaid, paymentMethod: method, paymentStatus, receiptUrl, attended: false, createdAt: new Date().toISOString() };
-    const { error } = await sb.from('registrations').insert([{
-      id: reg.id, event_id: reg.eventId, code: reg.code, name: reg.name, phone: reg.phone, age: reg.age,
+    const row = {
+      id: reg.id, event_id: reg.eventId, code: reg.code, name: reg.name, phone: reg.phone || null, age: Number.isInteger(reg.age) ? reg.age : null,
       is_paid: reg.isPaid, payment_method: reg.paymentMethod, payment_status: reg.paymentStatus,
-      receipt_url: reg.receiptUrl, attended: reg.attended, created_at: reg.createdAt
-    }]);
+      receipt_url: reg.receiptUrl, attended: reg.attended, created_at: reg.createdAt,
+      extra_data: extraData
+    };
+    let { error } = await sb.from('registrations').insert([row]);
+    if (error && String(error.message || '').includes('extra_data')) {
+      delete row.extra_data;
+      ({ error } = await sb.from('registrations').insert([row]));
+    }
     if (error) {
       console.error(error);
       if (String(error.message || '').includes('uq_registrations_event_name_phone')) return formError(DUP_MSG);
@@ -287,7 +291,13 @@ function showPass(p) {
   $('p-event').textContent = evt.title;
   $('p-code').textContent = 'EVT-' + p.code;
   $('p-name').textContent = p.name;
-  $('p-phone').textContent = 'Cel: ' + (p.phone || p.dni || '-') + (p.age ? ' • ' + p.age + ' años' : '');
+  const vis = window.FormFields ? FormFields.visibleFields(evt.formFields) : [];
+  const phoneLab = ((vis.find(f => f.key === 'phone') || {}).label) || 'Cel';
+  const ageLab = ((vis.find(f => f.key === 'age') || {}).label) || 'Edad';
+  const bits = [];
+  if (p.phone || p.dni) bits.push((p.phone ? phoneLab + ': ' + p.phone : 'DNI: ' + p.dni));
+  if (p.age) bits.push(ageLab + ': ' + p.age);
+  $('p-phone').textContent = bits.join(' • ');
   const st = $('p-status');
   const map = !p.isPaid ? ['✓ Acceso gratuito confirmado', 'indigo'] : p.paymentStatus === 'Pagado' ? ['✓ Pago aprobado', 'emerald'] : p.paymentStatus === 'En Revisión' ? ['⏳ Comprobante en revisión', 'amber'] : ['📍 Pagar en cafetería (' + p.paymentMethod + ')', 'sky'];
   st.textContent = map[0];
@@ -318,7 +328,13 @@ function renderPassList() {
 }
 
 $('btn-print').addEventListener('click', () => window.print());
-$('btn-another').addEventListener('click', () => { $('reg-form').reset(); $('proof-name').textContent = 'Máximo 10 MB. Se guarda de forma segura.'; formError(''); show('st-form'); });
+$('btn-another').addEventListener('click', () => {
+  $('reg-form').reset();
+  if (window.FormFields) FormFields.renderFormFields($('dyn-fields'), evt.formFields, { prefix: 'f-' });
+  $('proof-name').textContent = 'Máximo 10 MB. Se guarda de forma segura.';
+  formError('');
+  show('st-form');
+});
 $('btn-wa').addEventListener('click', () => {
   const t = `¡Hola! Aquí está mi pase para *${evt.title}* en Ministerio Internacional Ágape.\n\n👤 *Nombre:* ${myPass.name}\n🔑 *Código de Entrada:* EVT-${myPass.code}\n📱 *Celular:* ${myPass.phone || myPass.dni || '-'}${myPass.isPaid ? `\n💳 *Estado:* ${myPass.paymentStatus}` : ''}\n\nPresenta este código al ingresar.`;
   window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(t), '_blank');
