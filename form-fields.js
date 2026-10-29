@@ -9,6 +9,10 @@
   const MAX_OPTS = 30;
   const MAX_LABEL = 80;
   const MAX_VAL = 200;
+  const MAX_LONG = 500;
+  const YESNO = ['Sí', 'No'];
+  const EXTRA_TYPES = ['text', 'number', 'select', 'textarea', 'yesno'];
+  const DEFAULT_LABELS = { text: 'Campo extra', number: 'Número', select: 'Lista', textarea: 'Texto largo', yesno: 'Sí / No' };
   const INPUT_PUBLIC = 'w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 text-base sm:text-sm text-white focus:outline-none focus:border-indigo-500';
   const INPUT_ADMIN = 'w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500';
 
@@ -33,39 +37,54 @@
   }
 
   function normalizeFormFields(raw) {
-    const result = defaultFormFields();
+    const defaults = defaultFormFields();
     const list = Array.isArray(raw) ? raw : [];
-    if (!list.length) return result;
+    if (!list.length) return defaults;
 
+    // Se respeta el orden guardado (los campos fijos también se pueden mover)
+    const out = [];
+    const seenSys = {};
+    let extrasCount = 0;
     list.forEach(f => {
       if (!f || typeof f !== 'object') return;
       if (f.key === 'name' || f.key === 'phone' || f.key === 'age') {
-        const row = result.find(x => x.key === f.key);
+        if (seenSys[f.key]) return;
+        seenSys[f.key] = true;
+        const row = defaults.find(x => x.key === f.key);
         row.label = sanitizeLabel(f.label, row.label);
         if (f.key !== 'name') {
           row.enabled = f.enabled !== false;
           row.required = row.enabled && f.required !== false;
         }
+        out.push(row);
+        return;
       }
-    });
-
-    const extras = [];
-    list.forEach(f => {
-      if (!f || typeof f !== 'object' || f.key === 'name' || f.key === 'phone' || f.key === 'age') return;
-      if (extras.length >= MAX_EXTRA) return;
-      const type = (f.type === 'select' || f.type === 'number') ? f.type : 'text';
+      if (extrasCount >= MAX_EXTRA) return;
+      const type = EXTRA_TYPES.indexOf(f.type) !== -1 ? f.type : 'text';
       const id = String(f.id || newFieldId()).replace(/[^\w-]/g, '').slice(0, 24) || newFieldId();
-      extras.push({
+      extrasCount++;
+      out.push({
         id,
         key: 'extra',
         type,
-        label: sanitizeLabel(f.label, type === 'select' ? 'Lista' : 'Campo extra'),
+        label: sanitizeLabel(f.label, DEFAULT_LABELS[type]),
         required: !!f.required,
         enabled: true,
         options: type === 'select' ? sanitizeOptions(f.options) : undefined
       });
     });
-    return result.concat(extras);
+    // Si falta algún campo fijo, vuelve al inicio en su orden normal
+    ['name', 'phone', 'age'].forEach((k, i, order) => {
+      if (seenSys[k]) return;
+      const row = defaults.find(x => x.key === k);
+      let at = 0;
+      for (let j = i - 1; j >= 0; j--) {
+        const idx = out.findIndex(x => x.key === order[j]);
+        if (idx !== -1) { at = idx + 1; break; }
+      }
+      out.splice(at, 0, row);
+    });
+    return out;
   }
 
   function visibleFields(fields) {
@@ -101,18 +120,22 @@
       wrap.appendChild(label);
 
       let input;
-      if (field.type === 'select') {
+      if (field.type === 'select' || field.type === 'yesno') {
         input = document.createElement('select');
         const ph = document.createElement('option');
         ph.value = '';
         ph.textContent = 'Selecciona una opción';
         input.appendChild(ph);
-        (field.options || []).forEach(o => {
+        (field.type === 'yesno' ? YESNO : (field.options || [])).forEach(o => {
           const opt = document.createElement('option');
           opt.value = o;
           opt.textContent = o;
           input.appendChild(opt);
         });
+      } else if (field.type === 'textarea') {
+        input = document.createElement('textarea');
+        input.rows = compact ? 2 : 3;
+        input.maxLength = MAX_LONG;
       } else {
         input = document.createElement('input');
         if (field.type === 'phone') {
@@ -122,8 +145,8 @@
           input.autocomplete = compact ? 'off' : 'tel';
         } else if (field.key === 'age' || field.type === 'number') {
           input.type = 'number';
-          input.inputMode = 'numeric';
-          if (field.key === 'age') { input.min = '1'; input.max = '120'; }
+          input.inputMode = field.key === 'age' ? 'numeric' : 'decimal';
+          if (field.key === 'age') { input.min = '1'; input.max = '120'; } else { input.step = 'any'; }
         } else {
           input.type = 'text';
           input.maxLength = field.key === 'name' ? 120 : MAX_VAL;
@@ -196,7 +219,15 @@
           out.error = 'Elige una opción válida en ' + field.label;
           return out;
         }
-        if (raw.length > MAX_VAL) {
+        if (field.type === 'yesno' && raw && YESNO.indexOf(raw) === -1) {
+          out.error = 'Elige Sí o No en ' + field.label;
+          return out;
+        }
+        if (field.type === 'number' && raw && !isFinite(Number(raw))) {
+          out.error = 'Escribe un número válido en ' + field.label;
+          return out;
+        }
+        if (raw.length > (field.type === 'textarea' ? MAX_LONG : MAX_VAL)) {
           out.error = field.label + ' es demasiado largo.';
           return out;
         }
@@ -215,6 +246,7 @@
     renderFormFields,
     readFormFields,
     fieldInputId,
-    MAX_EXTRA
+    MAX_EXTRA,
+    DEFAULT_LABELS
   };
 })(window);

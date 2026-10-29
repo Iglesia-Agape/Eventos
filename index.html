@@ -442,7 +442,14 @@
               <div id="form-fields-editor" class="space-y-2"></div>
               <div class="flex flex-wrap gap-2">
                 <button type="button" onclick="addExtraFormField('text')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-medium rounded-lg border border-slate-700">+ Campo de texto</button>
+                <button type="button" onclick="addExtraFormField('textarea')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-medium rounded-lg border border-slate-700">+ Texto largo</button>
+                <button type="button" onclick="addExtraFormField('number')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-medium rounded-lg border border-slate-700">+ Campo numérico</button>
+                <button type="button" onclick="addExtraFormField('yesno')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-medium rounded-lg border border-slate-700">+ Sí / No</button>
                 <button type="button" onclick="addExtraFormField('select')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-medium rounded-lg border border-slate-700">+ Lista (elegir 1)</button>
+              </div>
+              <div id="copy-fields-box" class="hidden">
+                <label for="copy-fields-from" class="block text-[10px] text-slate-400 mb-1">Copiar los campos de otro evento (reemplaza los de arriba)</label>
+                <select id="copy-fields-from" onchange="copyFieldsFromEvent(this.value)" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"></select>
               </div>
             </div>
 
@@ -1717,16 +1724,49 @@ function closePassModal() {
       if (FormFields.extraFields(draftFormFields).length >= FormFields.MAX_EXTRA) {
         return showToast('Máximo ' + FormFields.MAX_EXTRA + ' campos extra.', 'warning');
       }
+      const t = ['text', 'textarea', 'number', 'yesno', 'select'].includes(type) ? type : 'text';
       draftFormFields.push({
         id: FormFields.newFieldId(),
         key: 'extra',
-        type: type === 'select' ? 'select' : 'text',
-        label: type === 'select' ? 'Lista' : 'Campo extra',
+        type: t,
+        label: FormFields.DEFAULT_LABELS[t],
         required: false,
         enabled: true,
-        options: type === 'select' ? [] : undefined
+        options: t === 'select' ? [] : undefined
       });
       renderFieldsEditor();
+    }
+
+    // Copia los campos de otro evento (con ids nuevos para los extra)
+    function copyFieldsFromEvent(evId) {
+      const sel = document.getElementById('copy-fields-from');
+      if (!evId) return;
+      const src = state.events.find(e => e.id === evId);
+      if (sel) sel.value = '';
+      if (!src) return;
+      draftFormFields = FormFields.normalizeFormFields(src.formFields).map(f =>
+        f.key === 'extra' ? Object.assign({}, f, { id: FormFields.newFieldId() }) : f);
+      renderFieldsEditor();
+      showToast('Campos copiados de "' + src.title + '". Revísalos y guarda el evento.', 'success');
+    }
+
+    function refreshCopyFieldsSelect() {
+      const box = document.getElementById('copy-fields-box');
+      const sel = document.getElementById('copy-fields-from');
+      if (!box || !sel) return;
+      const others = (state.events || []).filter(e => e.id !== editingEventId);
+      box.classList.toggle('hidden', !others.length);
+      sel.innerHTML = '';
+      const ph = document.createElement('option');
+      ph.value = '';
+      ph.textContent = 'Elegir evento...';
+      sel.appendChild(ph);
+      others.forEach(e => {
+        const o = document.createElement('option');
+        o.value = e.id;
+        o.textContent = e.title;
+        sel.appendChild(o);
+      });
     }
 
     function bindFieldsEditor() {
@@ -1736,6 +1776,17 @@ function closePassModal() {
       box.addEventListener('input', onFieldsEditorChange);
       box.addEventListener('change', onFieldsEditorChange);
       box.addEventListener('click', (e) => {
+        const mv = e.target.closest('[data-move]');
+        if (mv) {
+          const i = draftFormFields.findIndex(f => f.id === mv.getAttribute('data-fid'));
+          const j = i + (mv.getAttribute('data-move') === 'up' ? -1 : 1);
+          if (i < 0 || j < 0 || j >= draftFormFields.length) return;
+          const tmp = draftFormFields[i];
+          draftFormFields[i] = draftFormFields[j];
+          draftFormFields[j] = tmp;
+          renderFieldsEditor();
+          return;
+        }
         const del = e.target.closest('[data-del]');
         if (!del) return;
         draftFormFields = draftFormFields.filter(f => f.id !== del.getAttribute('data-del'));
@@ -1763,12 +1814,14 @@ function closePassModal() {
       const box = document.getElementById('form-fields-editor');
       if (!box) return;
       draftFormFields = FormFields.normalizeFormFields(draftFormFields);
+      refreshCopyFieldsSelect();
       box.innerHTML = '';
       draftFormFields.forEach(field => {
         const card = document.createElement('div');
         card.className = 'p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2';
         const sys = field.key !== 'extra';
-        const typeTxt = field.type === 'select' ? 'Lista' : field.key === 'phone' ? 'Celular' : (field.key === 'age' ? 'Edad' : 'Texto');
+        const typeNames = { select: 'Lista', textarea: 'Texto largo', number: 'Número', yesno: 'Sí / No' };
+        const typeTxt = field.key === 'phone' ? 'Celular' : (field.key === 'age' ? 'Edad' : (typeNames[field.type] || 'Texto'));
 
         const top = document.createElement('div');
         top.className = 'flex items-center justify-between gap-2';
@@ -1784,6 +1837,20 @@ function closePassModal() {
           del.textContent = 'Quitar';
           top.appendChild(del);
         }
+        const actions = document.createElement('div');
+        actions.className = 'flex items-center gap-1';
+        [['up', '↑', 'Subir'], ['down', '↓', 'Bajar']].forEach(([dir, sym, ttl]) => {
+          const mb = document.createElement('button');
+          mb.type = 'button';
+          mb.setAttribute('data-move', dir);
+          mb.setAttribute('data-fid', field.id);
+          mb.title = ttl;
+          mb.setAttribute('aria-label', ttl);
+          mb.className = 'w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm border border-slate-700';
+          mb.textContent = sym;
+          actions.appendChild(mb);
+        });
+        top.appendChild(actions);
         card.appendChild(top);
 
         const lab = document.createElement('input');
