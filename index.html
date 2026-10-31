@@ -36,6 +36,12 @@
   <style>
     /* Mientras no haya sesión de administrador, el panel permanece oculto */
     body.auth-locked > header, body.auth-locked > main { display: none !important; }
+    /* Cuenta de voluntario (staff): no ve crear / editar / eliminar eventos. La seguridad real está en Supabase (RLS); esto solo oculta los botones. */
+    body.role-staff [onclick*="switchTab('create')"],
+    body.role-staff [onclick^="startEditEvent"],
+    body.role-staff [onclick^="deleteCurrentEvent"],
+    body.role-staff [onclick^="toggleRegistrationOpen"],
+    body.role-staff [onclick^="ensureDriveFolderForCurrentEvent"] { display: none !important; }
     @media print {
       body * { visibility: hidden; }
       #print-area, #print-area * { visibility: visible; }
@@ -101,7 +107,7 @@
       <div class="text-center space-y-2">
         <img src="Logo.png" alt="Ágape" width="64" height="64" class="w-16 h-16 object-contain mx-auto">
         <h1 class="text-xl font-bold text-white">Eventos Ágape</h1>
-        <p class="text-xs text-slate-400">Acceso exclusivo para administradores</p>
+        <p class="text-xs text-slate-400">Acceso para administradores y voluntarios</p>
       </div>
       <form id="login-form" class="space-y-3">
         <input type="email" id="login-email" required autocomplete="username" placeholder="Correo del administrador" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 text-sm text-white focus:outline-none focus:border-indigo-500">
@@ -751,9 +757,14 @@
       lucide.createIcons();
     }
 
+    let userRole = null; // 'admin' | 'staff'
+    function isStaffRole() { return userRole === 'staff'; }
+
     function lockAdminPanel() {
       state.events = [];
       state.registrations = [];
+      userRole = null;
+      document.body.classList.remove('role-staff');
       state.currentEventId = null;
       state.recentCheckins = [];
       localStorage.removeItem('eventsync_events');
@@ -768,20 +779,30 @@
     }
 
     async function startAdminSession() {
-      // Una cuenta que inició sesión pero NO está en admin_emails no debe ver el panel
+      // Solo entran cuentas que estén en admin_emails (administrador) o staff_emails (voluntario)
       try {
         const { data: isAdm, error: admErr } = await supabaseClient.rpc('is_admin');
-        if (admErr || isAdm !== true) {
+        if (admErr) throw admErr;
+        let role = isAdm === true ? 'admin' : null;
+        if (!role) {
+          const { data: isStf, error: stfErr } = await supabaseClient.rpc('is_staff');
+          if (stfErr) throw stfErr;
+          if (isStf === true) role = 'staff';
+        }
+        if (!role) {
           await supabaseClient.auth.signOut();
-          showAuthGate(admErr ? 'No se pudo verificar tu cuenta. Intenta de nuevo.' : 'Esta cuenta no tiene permisos de administrador.');
+          showAuthGate('Esta cuenta no tiene permisos para entrar al panel.');
           return false;
         }
+        userRole = role;
+        document.body.classList.toggle('role-staff', role === 'staff');
       } catch (e) {
+        await supabaseClient.auth.signOut();
         showAuthGate('No se pudo verificar tu cuenta: ' + e.message);
         return false;
       }
       document.getElementById('status-dot').className = 'w-2 h-2 rounded-full bg-emerald-400 inline-block animate-pulse';
-      document.getElementById('status-text').innerText = 'Supabase Conectado';
+      document.getElementById('status-text').innerText = isStaffRole() ? 'Conectado (Voluntario)' : 'Supabase Conectado';
       document.getElementById('badge-connection').classList.remove('hidden');
       document.getElementById('btn-logout').classList.remove('hidden');
 
@@ -1090,6 +1111,7 @@
 
     // NAVEGACIÓN ENTRE PESTAÑAS (SOLO EN EL PANEL)
     function switchTab(tabId) {
+      if (isStaffRole() && tabId === 'create') tabId = 'dashboard';
       if (editingEventId && !(tabId === 'create' && enteringEdit)) exitEditMode();
       document.getElementById('image-field-box')?.classList.toggle('hidden', !supabaseClient);
       if (tabId !== 'checkin' && html5QrCodeScanner) stopCameraScanner();
@@ -2008,6 +2030,7 @@ function closePassModal() {
 
     // ---- Edición de un evento existente (reutiliza el formulario de crear) ----
     function startEditEvent() {
+      if (isStaffRole()) return;
       const evt = state.events.find(e => e.id === state.currentEventId);
       if (!evt) return;
       editingEventId = evt.id;
@@ -2079,6 +2102,7 @@ function closePassModal() {
     }
 
     async function handleUpdateEvent(e) {
+      if (isStaffRole()) { if (e && e.preventDefault) e.preventDefault(); return; }
       e.preventDefault();
       const evt = state.events.find(x => x.id === editingEventId);
       if (!evt) { exitEditMode(); return; }
@@ -2200,6 +2224,7 @@ function closePassModal() {
     }
 
     async function toggleRegistrationOpen() {
+      if (isStaffRole()) return;
       const evt = state.events.find(e => e.id === state.currentEventId);
       if (!evt) return showToast('Primero selecciona o crea un evento.', 'warning');
       const st = registrationStatus(evt);
@@ -2382,6 +2407,7 @@ function closePassModal() {
     document.getElementById('registrant-form').addEventListener('submit', saveRegistrant);
 
     async function handleCreateEvent(e) {
+      if (isStaffRole()) { if (e && e.preventDefault) e.preventDefault(); return; }
       if (editingEventId) return handleUpdateEvent(e);
       e.preventDefault();
       // Se valida antes de bloquear el botón, para que el formulario siga utilizable si hay un error
@@ -2490,6 +2516,7 @@ function closePassModal() {
     }
 
     async function ensureDriveFolderForCurrentEvent() {
+      if (isStaffRole()) return;
       const evt = state.events.find(e => e.id === state.currentEventId);
       if (!evt) return;
 
@@ -2526,6 +2553,7 @@ function closePassModal() {
     }
 
     async function deleteCurrentEvent() {
+      if (isStaffRole()) return;
       const evt = state.events.find(e => e.id === state.currentEventId);
       if (!evt) return;
       if (!confirm(`¿Estás seguro de eliminar el evento "${evt.title}" y todos sus registros asociados?`)) return;
