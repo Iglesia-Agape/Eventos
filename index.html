@@ -604,7 +604,7 @@
           <input type="checkbox" id="reg-attended" class="mt-0.5 w-4 h-4 rounded border-slate-700 bg-slate-950 accent-indigo-500">
           <span>
             <span class="block text-xs font-medium text-slate-300">Marcar que ya llegó al evento</span>
-            <span class="block text-[10px] text-slate-400 mt-0.5">Úsalo cuando la persona está en la puerta.</span>
+            <span class="block text-[10px] text-slate-400 mt-0.5">Úsalo cuando la persona está en la puerta. En eventos de pago, requiere estado Pagado.</span>
           </span>
         </label>
         <p id="reg-error" class="hidden text-xs p-3 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-300"></p>
@@ -1414,6 +1414,9 @@
     function toggleAttendance(regId) {
       const reg = state.registrations.find(r => r.id === regId);
       if (!reg) return;
+      if (!reg.attended && !isPaymentSettled(reg)) {
+        return showToast(reg.name + ' aún no ha pagado. Cambia su estado de pago a Pagado (o Exento) para marcar que llegó.', 'warning');
+      }
       const prev = { attended: reg.attended, paymentStatus: reg.paymentStatus };
       reg.attended = !reg.attended;
       saveLocalData();
@@ -2379,6 +2382,10 @@ function closePassModal() {
       if (count >= evt.capacity && !confirm('El evento ya está lleno (' + count + '/' + evt.capacity + ').\n\n¿Inscribir a esta persona de todos modos?')) { btn.disabled = false; return; }
 
       const attended = document.getElementById('reg-attended').checked;
+      if (attended && evt.isPaid && status !== 'Pagado' && status !== 'Exento') {
+        btn.disabled = false;
+        return regError('Para marcar que ya llegó, primero pon el estado de pago en Pagado.');
+      }
       const nowIso = new Date().toISOString();
       const row = {
         id: 'reg-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
@@ -2583,6 +2590,71 @@ function closePassModal() {
       document.getElementById('checkin-input').value = '';
     }
 
+    // ---- Estado de pago junto al resultado del escaneo (solo eventos de pago) ----
+    const PAY_OPTIONS = [
+      ['Pagado', 'Pagado'],
+      ['En Revisión', 'En Revisión'],
+      ['Pendiente Pago (POS)', 'Pendiente POS (Cafetería)'],
+      ['Pendiente Pago (Efectivo)', 'Pendiente Efectivo (Cafetería)'],
+      ['Rechazado', 'Rechazado'],
+      ['Exento', 'Exento (Gratis)']
+    ];
+
+    // En eventos de pago, solo se marca "llegó" si el pago está en Pagado o Exento
+    function isPaymentSettled(reg) {
+      return !reg.isPaid || reg.paymentStatus === 'Pagado' || reg.paymentStatus === 'Exento';
+    }
+
+    function payStatusClass(ps) {
+      if (ps === 'Pagado') return 'bg-emerald-500/10 text-emerald-300 border-emerald-500/40';
+      if (ps === 'En Revisión') return 'bg-amber-500/10 text-amber-300 border-amber-500/40';
+      if ((ps || '').includes('Pendiente')) return 'bg-sky-500/10 text-sky-300 border-sky-500/40';
+      if (ps === 'Exento') return 'bg-indigo-500/10 text-indigo-300 border-indigo-500/40';
+      if (ps === 'Rechazado') return 'bg-rose-500/10 text-rose-300 border-rose-500/40';
+      return 'bg-slate-800 text-slate-300 border-slate-700';
+    }
+
+    function checkinPayPanelHtml(reg) {
+      if (!reg || !reg.isPaid) return '';
+      const ps = reg.paymentStatus || 'Sin estado';
+      const known = PAY_OPTIONS.some(o => o[0] === ps);
+      const opts = (known ? '' : `<option value="${esc(ps)}" selected>${esc(ps)}</option>`) +
+        PAY_OPTIONS.map(o => `<option value="${esc(o[0])}" ${o[0] === ps ? 'selected' : ''}>${esc(o[1])}</option>`).join('');
+      return `
+        <div id="checkin-pay-panel" class="sm:w-60 shrink-0 rounded-xl bg-slate-950/70 border border-slate-700/70 p-3 space-y-2 text-slate-200">
+          <p class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Estado de pago</p>
+          <span class="inline-block text-xs font-bold px-2 py-0.5 rounded border ${payStatusClass(ps)}">${esc(ps)}</span>
+          ${reg.paymentMethod ? `<p class="text-[10px] text-slate-400">Método: ${esc(reg.paymentMethod)}</p>` : ''}
+          <select data-pay-reg="${esc(reg.id)}" aria-label="Cambiar estado de pago" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500">${opts}</select>
+          ${ps !== 'Pagado' ? `<button type="button" data-pay-mark="${esc(reg.id)}" class="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg">Marcar como Pagado</button>` : ''}
+        </div>`;
+    }
+
+    function checkinLayout(leftHtml, reg) {
+      return `<div class="flex flex-col sm:flex-row gap-4 sm:items-start"><div class="flex-1 min-w-0 space-y-2">${leftHtml}</div>${checkinPayPanelHtml(reg)}</div>`;
+    }
+
+    async function checkinSetPayment(regId, newStatus) {
+      const reg = state.registrations.find(r => r.id === regId);
+      if (!reg || !newStatus || reg.paymentStatus === newStatus) return;
+      const box = document.getElementById('checkin-result');
+      const wasBlocked = !!box && (box.dataset.state === 'rejected' || box.dataset.state === 'unpaid');
+      const prev = { attended: reg.attended, paymentStatus: reg.paymentStatus };
+      reg.paymentStatus = newStatus;
+      saveLocalData();
+      renderCurrentEventDetails();
+      const ok = await syncUpdateToSupabase(reg, prev);
+      if (ok) showToast(`Estado de pago de ${reg.name} actualizado a: ${newStatus}`, 'success');
+      if (!box || box.dataset.regId !== reg.id) return;
+      // Si la entrada estaba bloqueada por el pago, se vuelve a validar el pase: si ya pagó, se marca que llegó
+      if (ok && wasBlocked) return processCheckinCode(reg.code);
+      const panel = document.getElementById('checkin-pay-panel');
+      if (panel) panel.outerHTML = checkinPayPanelHtml(reg);
+      const warn = document.getElementById('checkin-pay-warning');
+      if (warn && !(reg.paymentStatus || '').includes('Pendiente') && reg.paymentStatus !== 'En Revisión') warn.remove();
+      lucide.createIcons();
+    }
+
     function processCheckinCode(rawCode) {
       if (!rawCode) return;
       if (!state.currentEventId) return showToast('Primero selecciona un evento en el Dashboard para validar pases.', 'warning');
@@ -2596,6 +2668,8 @@ function closePassModal() {
       const otherEvtReg = !reg ? state.registrations.find(matches) : null;
       const box = document.getElementById('checkin-result');
       box.classList.remove('hidden');
+      delete box.dataset.regId;
+      delete box.dataset.state;
 
       if (!reg) {
         playBeep(false);
@@ -2617,17 +2691,39 @@ function closePassModal() {
       }
 
       const evt = state.events.find(e => e.id === reg.eventId);
+      box.dataset.regId = reg.id;
 
       // Pago rechazado: no se da acceso ni se marca asistencia
       if (reg.isPaid && reg.paymentStatus === 'Rechazado') {
         playBeep(false);
-        box.className = 'rounded-xl p-5 border bg-rose-950/60 border-rose-500/50 text-rose-200 space-y-1';
-        box.innerHTML = `
+        box.dataset.state = 'rejected';
+        box.className = 'rounded-xl p-5 border bg-rose-950/60 border-rose-500/50 text-rose-200';
+        box.innerHTML = checkinLayout(`
           <div class="flex items-center gap-2 font-bold text-sm text-rose-300">
             <i data-lucide="ban" class="w-5 h-5"></i> Acceso denegado: pago rechazado
           </div>
-          <p class="text-xs text-rose-300/80">${esc(reg.name)} (${esc(contactLine(reg))}). Su comprobante fue rechazado; debe regularizar el pago con un administrador.</p>
-        `;
+          <p class="text-xs text-rose-300/80">${esc(reg.name)} (${esc(contactLine(reg))}). Su comprobante fue rechazado. Si ya regularizó el pago, cambia el estado a Pagado aquí a un lado.</p>
+        `, reg);
+        lucide.createIcons();
+        return;
+      }
+
+      // Pago sin confirmar: NO se marca la llegada hasta que se registre el pago
+      if (!reg.attended && !isPaymentSettled(reg)) {
+        playBeep(false);
+        box.dataset.state = 'unpaid';
+        box.className = 'rounded-xl p-5 border bg-amber-950/60 border-amber-500/50 text-amber-200';
+        const hint = reg.paymentStatus === 'En Revisión'
+          ? 'Su comprobante está en revisión. Verifícalo en el Dashboard y, si es correcto, márcalo como Pagado aquí a un lado.'
+          : 'Cobra el pago' + (reg.paymentMethod ? ' (' + esc(reg.paymentMethod) + ')' : '') + ' y márcalo como Pagado aquí a un lado para registrar su entrada.';
+        box.innerHTML = checkinLayout(`
+          <div class="flex items-center gap-2 font-bold text-sm text-amber-300">
+            <i data-lucide="alert-triangle" class="w-5 h-5"></i> Entrada no registrada: falta confirmar el pago
+          </div>
+          <p class="text-sm font-semibold text-white">${esc(reg.name)}</p>
+          <p class="text-xs text-amber-200/90 font-mono">${esc(contactLine(reg))} | Código: EVT-${esc(reg.code)}</p>
+          <p class="text-xs text-amber-200">${hint}</p>
+        `, reg);
         lucide.createIcons();
         return;
       }
@@ -2646,40 +2742,47 @@ function closePassModal() {
 
       if (isAlreadyCheckedIn) {
         playBeep(false);
-        box.className = 'rounded-xl p-5 border bg-amber-950/60 border-amber-500/50 text-amber-200 space-y-2';
-        box.innerHTML = `
+        box.className = 'rounded-xl p-5 border bg-amber-950/60 border-amber-500/50 text-amber-200';
+        box.innerHTML = checkinLayout(`
           <div class="flex items-center gap-2 font-bold text-sm text-amber-300">
             <i data-lucide="alert-triangle" class="w-5 h-5"></i> ¡Atención: Este pase YA había ingresado!
           </div>
           <p class="text-xs text-amber-200">Participante: <strong>${esc(reg.name)}</strong> (${esc(contactLine(reg))})</p>
           <p class="text-[11px] text-amber-300/80">Código: EVT-${esc(reg.code)} | Evento: ${esc(evt ? evt.title : 'General')}</p>
-        `;
+        `, reg);
       } else {
         playBeep(true);
         
-        let paymentWarning = '';
-        if (reg.isPaid && (reg.paymentStatus || '').includes('Pendiente')) {
-          paymentWarning = `<div class="mt-2 text-xs bg-amber-500/20 text-amber-300 border border-amber-500/30 p-2 rounded-lg font-bold">⚠️ ATENCIÓN: Tiene pago pendiente (${esc(reg.paymentMethod)}). Cobrar en Cafetería.</div>`;
-        } else if (reg.isPaid && reg.paymentStatus === 'En Revisión') {
-          paymentWarning = `<div class="mt-2 text-xs bg-amber-500/20 text-amber-300 border border-amber-500/30 p-2 rounded-lg font-bold">⚠️ ATENCIÓN: Su comprobante todavía está en revisión. Verifícalo en el Dashboard antes de dejarlo pasar.</div>`;
-        }
+        const paymentWarning = '';
 
-        box.className = 'rounded-xl p-5 border bg-emerald-950/60 border-emerald-500/50 text-emerald-200 space-y-2';
-        box.innerHTML = `
+        box.className = 'rounded-xl p-5 border bg-emerald-950/60 border-emerald-500/50 text-emerald-200';
+        box.innerHTML = checkinLayout(`
           <div class="flex items-center gap-2 font-bold text-base text-emerald-300">
             <i data-lucide="check-circle-2" class="w-6 h-6"></i> ¡Acceso Concedido!
           </div>
           <p class="text-sm font-semibold text-white">${esc(reg.name)}</p>
           <p class="text-xs text-emerald-300/90 font-mono">${esc(contactLine(reg))} | Código: EVT-${esc(reg.code)}</p>
           <div class="text-[11px] pt-1 flex items-center gap-2">
-            ${reg.isPaid ? `<span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-medium">Estado: ${esc(reg.paymentStatus)}</span>` : ''}
             <span class="text-slate-400">Evento: ${esc(evt ? evt.title : 'General')}</span>
           </div>
           ${paymentWarning}
-        `;
+        `, reg);
       }
       lucide.createIcons();
     }
+
+    (function bindCheckinPayPanel() {
+      const box = document.getElementById('checkin-result');
+      if (!box) return;
+      box.addEventListener('click', (ev) => {
+        const b = ev.target.closest('[data-pay-mark]');
+        if (b) checkinSetPayment(b.dataset.payMark, 'Pagado');
+      });
+      box.addEventListener('change', (ev) => {
+        const sel = ev.target.closest('select[data-pay-reg]');
+        if (sel) checkinSetPayment(sel.dataset.payReg, sel.value);
+      });
+    })();
 
     function renderRecentCheckins() {
       const container = document.getElementById('recent-checkins-list');
