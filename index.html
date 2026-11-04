@@ -42,7 +42,9 @@
     body.role-staff [onclick^="deleteCurrentEvent"],
     body.role-staff [onclick^="toggleRegistrationOpen"],
     body.role-staff [onclick^="ensureDriveFolderForCurrentEvent"],
-    body.role-staff [onclick^="openImportModal"] { display: none !important; }
+    body.role-staff [onclick^="openImportModal"],
+    body.role-staff [onclick^="openAuditModal"],
+    body.role-staff [onclick^="openBackupModal"] { display: none !important; }
     @media print {
       body * { visibility: hidden; }
       #print-area, #print-area * { visibility: visible; }
@@ -272,6 +274,15 @@
                 <button onclick="exportCSV()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-lg border border-slate-700 flex items-center gap-1.5 transition">
                   <i data-lucide="download" class="w-3.5 h-3.5"></i>
                   CSV
+                </button>
+                <button onclick="openAuditModal()" id="btn-audit" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-lg border border-slate-700 flex items-center gap-1.5 transition" title="Quién cambió pagos, llegadas y datos">
+                  <i data-lucide="history" class="w-3.5 h-3.5"></i>
+                  Historial
+                </button>
+                <button onclick="openBackupModal()" id="btn-backup" class="relative px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-lg border border-slate-700 flex items-center gap-1.5 transition" title="Descargar una copia de todos tus datos">
+                  <i data-lucide="database-backup" class="w-3.5 h-3.5"></i>
+                  Respaldo
+                  <span id="backup-dot" class="hidden absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-400 border border-slate-900"></span>
                 </button>
               </div>
             </div>
@@ -700,6 +711,57 @@
   </div>
 
   <!-- ========================================== -->
+  <!-- MODAL: HISTORIAL DE CAMBIOS                 -->
+  <!-- ========================================== -->
+  <div id="modal-audit" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-3xl w-full p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+      <button type="button" onclick="closeAuditModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-xl hover:bg-slate-800 transition" title="Cerrar">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+      <div class="pr-8 mb-4">
+        <h3 class="text-base font-bold text-white">Historial de cambios</h3>
+        <p id="audit-subtitle" class="text-xs text-slate-400 mt-0.5"></p>
+      </div>
+      <div class="flex flex-wrap items-center gap-2 mb-3">
+        <select id="audit-filter" onchange="renderAudit()" aria-label="Filtrar historial" class="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-indigo-500">
+          <option value="">Todos los cambios</option>
+          <option value="pago">Pagos</option>
+          <option value="llegada">Llegadas</option>
+          <option value="datos">Datos editados</option>
+          <option value="altas">Altas y eliminaciones</option>
+        </select>
+        <button type="button" onclick="loadAudit()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-lg border border-slate-700">Actualizar</button>
+        <span id="audit-count" class="text-[11px] text-slate-500"></span>
+      </div>
+      <p id="audit-msg" class="hidden text-xs p-3 rounded-xl bg-amber-950/40 border border-amber-500/30 text-amber-200"></p>
+      <div id="audit-list" class="overflow-x-auto rounded-xl border border-slate-800"></div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL: RESPALDO                             -->
+  <!-- ========================================== -->
+  <div id="modal-backup" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+      <button type="button" onclick="closeBackupModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-xl hover:bg-slate-800 transition" title="Cerrar">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+      <div class="pr-8 mb-4">
+        <h3 class="text-base font-bold text-white">Respaldo de tus datos</h3>
+        <p class="text-xs text-slate-400 mt-0.5 leading-relaxed">Descarga una copia de <strong>todos los eventos y todos los inscritos</strong>. Guárdala en un lugar seguro (tu computadora y tu Google Drive).</p>
+      </div>
+      <p id="backup-last" class="text-xs p-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-300 mb-3"></p>
+      <div class="space-y-2">
+        <button type="button" id="btn-backup-json" onclick="downloadBackup('json')" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white text-xs font-semibold rounded-xl">Respaldo completo (.json)</button>
+        <button type="button" id="btn-backup-csv" onclick="downloadBackup('csv')" class="w-full py-2.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-60 text-slate-200 text-xs font-medium rounded-xl border border-slate-700">Todos los inscritos para Excel (.csv)</button>
+      </div>
+      <p class="text-[10px] text-slate-500 mt-3 leading-relaxed">El archivo .json es el que sirve para restaurar todo si algún día se pierde algo. El .csv es para abrirlo en Excel o Google Sheets. Se recomienda descargarlo cada semana y antes de cada evento grande.</p>
+      <p id="backup-progress" class="hidden text-xs mt-3 p-3 rounded-xl bg-indigo-950/40 border border-indigo-500/30 text-indigo-300"></p>
+      <p id="backup-error" class="hidden text-xs mt-3 p-3 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-300"></p>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
   <!-- MODAL: DIAGNÓSTICO OCULTO PARA EL DUEÑO     -->
   <!-- ========================================== -->
   <div id="modal-diagnostics" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
@@ -886,6 +948,7 @@
       }
       document.getElementById('status-dot').className = 'w-2 h-2 rounded-full bg-emerald-400 inline-block animate-pulse';
       document.getElementById('status-text').innerText = isStaffRole() ? 'Conectado (Voluntario)' : 'Supabase Conectado';
+      updateBackupBadge();
       document.getElementById('badge-connection').classList.remove('hidden');
       document.getElementById('btn-logout').classList.remove('hidden');
 
@@ -2495,6 +2558,188 @@ function closePassModal() {
     }
 
     document.getElementById('registrant-form').addEventListener('submit', saveRegistrant);
+
+    // ==========================================
+    // HISTORIAL DE CAMBIOS (solo administrador)
+    // ==========================================
+    let auditRows = [];
+    const AUDIT_LABELS = { llegada: 'Llegada', pago: 'Estado de pago', metodo: 'Método de pago', datos: 'Datos editados', inscribio: 'Inscribió (panel)', elimino: 'Eliminó inscripción' };
+    const AUDIT_COLORS = { llegada: 'text-emerald-300', pago: 'text-amber-300', metodo: 'text-sky-300', datos: 'text-indigo-300', inscribio: 'text-slate-200', elimino: 'text-rose-300' };
+
+    function auditDetail(r) {
+      const d = r.detail || {};
+      if (r.action === 'llegada') return d.a ? 'Marcó que llegó' : 'Quitó la llegada';
+      if (r.action === 'pago' || r.action === 'metodo') return (d.de || '—') + '  →  ' + (d.a || '—');
+      if (r.action === 'datos') return 'Antes: ' + ([d.nombre_antes, d.celular_antes, d.edad_antes != null ? d.edad_antes + ' años' : ''].filter(Boolean).join(' · ') || '—');
+      if (r.action === 'inscribio') return 'Código ' + (d.codigo || '') + (d.pago ? ' · ' + d.pago : '');
+      if (r.action === 'elimino') return 'Código ' + (d.codigo || '') + (d.celular ? ' · ' + d.celular : '');
+      return '';
+    }
+
+    function openAuditModal() {
+      if (isStaffRole()) return;
+      const evt = state.events.find(e => e.id === state.currentEventId);
+      if (!evt) return showToast('Primero selecciona un evento.', 'warning');
+      document.getElementById('audit-subtitle').innerText = 'Evento: ' + evt.title;
+      document.getElementById('audit-filter').value = '';
+      document.getElementById('modal-audit').classList.remove('hidden');
+      lucide.createIcons();
+      loadAudit();
+    }
+    function closeAuditModal() { document.getElementById('modal-audit').classList.add('hidden'); }
+
+    async function loadAudit() {
+      const evt = state.events.find(e => e.id === state.currentEventId);
+      const msg = document.getElementById('audit-msg');
+      const list = document.getElementById('audit-list');
+      msg.classList.add('hidden');
+      if (!evt) return;
+      if (!supabaseClient) { list.innerHTML = ''; msg.textContent = 'El historial solo está disponible con la nube conectada.'; msg.classList.remove('hidden'); return; }
+      list.innerHTML = '<p class="p-4 text-xs text-slate-400">Cargando historial...</p>';
+      const { data, error } = await supabaseClient.from('audit_log').select('*').eq('event_id', evt.id).order('at', { ascending: false }).limit(300);
+      if (error) {
+        list.innerHTML = '';
+        msg.textContent = /audit_log|42P01/.test(String(error.message || '') + String(error.code || ''))
+          ? 'Falta activar el historial: ejecuta el archivo mejoras-v2.sql en el SQL Editor de Supabase.'
+          : 'No se pudo cargar el historial: ' + error.message;
+        msg.classList.remove('hidden');
+        return;
+      }
+      auditRows = data || [];
+      renderAudit();
+    }
+
+    function renderAudit() {
+      const f = document.getElementById('audit-filter').value;
+      const rows = auditRows.filter(r => !f || (f === 'pago' ? (r.action === 'pago' || r.action === 'metodo') : f === 'altas' ? (r.action === 'inscribio' || r.action === 'elimino') : r.action === f));
+      document.getElementById('audit-count').innerText = rows.length + (rows.length === 1 ? ' registro' : ' registros') + (auditRows.length >= 300 ? ' (últimos 300)' : '');
+      const list = document.getElementById('audit-list');
+      if (!rows.length) { list.innerHTML = '<p class="p-4 text-xs text-slate-400">Todavía no hay cambios registrados' + (f ? ' de este tipo' : '') + '. Se empiezan a guardar desde que se activó el historial.</p>'; return; }
+      const fmt = (iso) => { try { return new Date(iso).toLocaleString('es-HN', { timeZone: 'America/Tegucigalpa', day: '2-digit', month: 'short', hour: 'numeric', minute: '2-digit' }); } catch (e) { return iso; } };
+      list.innerHTML = '<table class="w-full text-[11px]"><thead class="bg-slate-950 text-slate-400"><tr>' +
+        ['Cuándo', 'Quién', 'Qué', 'Persona', 'Detalle'].map(h => '<th class="px-3 py-2 text-left font-semibold whitespace-nowrap">' + h + '</th>').join('') + '</tr></thead><tbody>' +
+        rows.map(r => '<tr class="border-t border-slate-800 align-top">' +
+          '<td class="px-3 py-2 text-slate-400 whitespace-nowrap">' + esc(fmt(r.at)) + '</td>' +
+          '<td class="px-3 py-2 text-slate-300">' + esc(r.actor || '—') + '</td>' +
+          '<td class="px-3 py-2 font-semibold whitespace-nowrap ' + (AUDIT_COLORS[r.action] || 'text-slate-200') + '">' + esc(AUDIT_LABELS[r.action] || r.action) + '</td>' +
+          '<td class="px-3 py-2 text-slate-200">' + esc(r.reg_name || '—') + '</td>' +
+          '<td class="px-3 py-2 text-slate-400">' + esc(auditDetail(r)) + '</td></tr>').join('') +
+        '</tbody></table>';
+    }
+
+    // ==========================================
+    // RESPALDO DE DATOS (solo administrador)
+    // ==========================================
+    const BACKUP_KEY = 'eventsync_last_backup';
+    function lastBackupMs() { try { return parseInt(localStorage.getItem(BACKUP_KEY) || '0', 10) || 0; } catch (e) { return 0; } }
+    function updateBackupBadge() {
+      const dot = document.getElementById('backup-dot');
+      if (!dot || isStaffRole()) return;
+      const t = lastBackupMs();
+      dot.classList.toggle('hidden', !!t && Date.now() - t < 7 * 86400000);   // punto ámbar si pasaron más de 7 días (o nunca)
+    }
+    function backupLastText() {
+      const t = lastBackupMs();
+      if (!t) return 'Aún no has descargado ningún respaldo desde este navegador.';
+      const days = Math.floor((Date.now() - t) / 86400000);
+      return 'Último respaldo en este navegador: ' + new Date(t).toLocaleString('es-HN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) +
+        (days >= 1 ? ' (hace ' + days + (days === 1 ? ' día' : ' días') + ')' : ' (hoy)');
+    }
+    function openBackupModal() {
+      if (isStaffRole()) return;
+      document.getElementById('backup-last').innerText = backupLastText();
+      document.getElementById('backup-progress').classList.add('hidden');
+      document.getElementById('backup-error').classList.add('hidden');
+      document.getElementById('modal-backup').classList.remove('hidden');
+      lucide.createIcons();
+    }
+    function closeBackupModal() { document.getElementById('modal-backup').classList.add('hidden'); }
+
+    function triggerDownload(name, text, mime) {
+      const blob = new Blob([text], { type: mime });
+      const a = document.createElement('a');
+      a.href = window.URL.createObjectURL(blob);
+      a.download = name;
+      a.click();
+      setTimeout(() => window.URL.revokeObjectURL(a.href), 4000);
+    }
+
+    async function backupFetchAll(setMsg) {
+      if (!supabaseClient) return { events: state.events, registrations: state.registrations, audit: [] };
+      const pageAll = async (table) => {
+        const out = [];
+        for (let from = 0; ; from += 1000) {
+          const { data, error } = await supabaseClient.from(table).select('*').order('id', { ascending: true }).range(from, from + 999);
+          if (error) throw error;
+          out.push(...(data || []));
+          if (!data || data.length < 1000) break;
+        }
+        return out;
+      };
+      setMsg('Leyendo eventos...');
+      const events = await pageAll('events');
+      setMsg('Leyendo inscritos...');
+      const registrations = await pageAll('registrations');
+      let audit = [];
+      try { setMsg('Leyendo historial...'); audit = await pageAll('audit_log'); } catch (e) { audit = []; }   // si aún no existe, se omite
+      return { events, registrations, audit };
+    }
+
+    async function downloadBackup(kind) {
+      if (isStaffRole()) return;
+      const prog = document.getElementById('backup-progress');
+      const err = document.getElementById('backup-error');
+      const btns = [document.getElementById('btn-backup-json'), document.getElementById('btn-backup-csv')];
+      err.classList.add('hidden');
+      btns.forEach(b => b.disabled = true);
+      prog.classList.remove('hidden');
+      const setMsg = (m) => { prog.textContent = m; };
+      try {
+        const all = await backupFetchAll(setMsg);
+        const stamp = new Date().toISOString().slice(0, 10);
+        if (kind === 'json') {
+          const payload = {
+            app: 'eventos-agape', formato: 1, generado: new Date().toISOString(),
+            totales: { eventos: all.events.length, inscritos: all.registrations.length, historial: all.audit.length },
+            events: all.events, registrations: all.registrations, audit_log: all.audit
+          };
+          triggerDownload('respaldo-eventos-' + stamp + '.json', JSON.stringify(payload), 'application/json');
+        } else {
+          const g = (r, a, b) => (r[a] !== undefined ? r[a] : r[b]);
+          const evById = {};
+          all.events.forEach(e => { evById[e.id] = e; });
+          const labelsOf = (ev) => {
+            const m = {};
+            if (ev) FormFields.normalizeFormFields(ev.form_fields || ev.formFields).forEach(f => { m[f.id] = f.label; });
+            return m;
+          };
+          const cache = {};
+          const header = ['Evento', 'Código', 'Nombre', 'Celular', 'Edad', 'Estado de pago', 'Método de pago', 'Llegó', 'Fecha de inscripción', 'Respuestas adicionales'];
+          let csv = '\uFEFF' + header.map(csvCell).join(',') + '\n';
+          all.registrations.forEach(r => {
+            const evId = g(r, 'event_id', 'eventId');
+            const ev = evById[evId];
+            const labels = cache[evId] || (cache[evId] = labelsOf(ev));
+            const extra = g(r, 'extra_data', 'extraData') || {};
+            const extraTxt = Object.keys(extra).map(k => (labels[k] || k) + ': ' + extra[k]).join(' | ');
+            csv += [ev ? ev.title : evId, r.code, r.name, r.phone || '', r.age == null ? '' : r.age,
+              g(r, 'payment_status', 'paymentStatus') || '', g(r, 'payment_method', 'paymentMethod') || '',
+              r.attended ? 'LLEGÓ' : 'PENDIENTE', g(r, 'created_at', 'createdAt') || '', extraTxt].map(csvCell).join(',') + '\n';
+          });
+          triggerDownload('inscritos-todos-' + stamp + '.csv', csv, 'text/csv;charset=utf-8;');
+        }
+        try { localStorage.setItem(BACKUP_KEY, String(Date.now())); } catch (e) {}
+        document.getElementById('backup-last').innerText = backupLastText();
+        updateBackupBadge();
+        setMsg('✓ Listo: ' + all.events.length + (all.events.length === 1 ? ' evento' : ' eventos') + ' y ' + all.registrations.length + ' inscritos. Revisa tu carpeta de descargas.');
+      } catch (e) {
+        prog.classList.add('hidden');
+        err.textContent = 'No se pudo generar el respaldo: ' + (e && e.message ? e.message : e);
+        err.classList.remove('hidden');
+      } finally {
+        btns.forEach(b => b.disabled = false);
+      }
+    }
 
     // ==========================================
     // IMPORTAR INSCRITOS DESDE UN ARCHIVO CSV (solo administrador)

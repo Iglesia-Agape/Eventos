@@ -17,8 +17,8 @@ const MAX_FILE = 10 * 1024 * 1024;
 const $ = (id) => document.getElementById(id);
 let sb = null, evt = null, myPass = null, myPasses = [];
 
-function show(name) { ['st-loading', 'st-msg', 'st-form', 'st-pass'].forEach(n => $(n).classList.toggle('hidden', n !== name)); window.scrollTo(0, 0); }
-function showMsg(icon, title, text) { $('msg-icon').textContent = icon; $('msg-title').textContent = title; $('msg-text').textContent = text; show('st-msg'); }
+function show(name) { ['st-loading', 'st-msg', 'st-form', 'st-pass', 'st-lookup'].forEach(n => $(n).classList.toggle('hidden', n !== name)); window.scrollTo(0, 0); }
+function showMsg(icon, title, text, lookup) { $('msg-icon').textContent = icon; $('msg-title').textContent = title; $('msg-text').textContent = text; $('msg-lookup').classList.toggle('hidden', !lookup); show('st-msg'); }
 function fmtDate(d) { const x = new Date(d); return isNaN(x) ? d : x.toLocaleDateString('es-ES', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }); }
 function newCode() { const a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', r = new Uint8Array(6); crypto.getRandomValues(r); return Array.from(r, v => a[v % a.length]).join(''); }
 function formError(msg) { const e = $('form-error'); e.textContent = msg || ''; e.classList.toggle('hidden', !msg); }
@@ -59,7 +59,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (closed || full) {
     // Quien ya se inscribió puede seguir viendo su pase aunque se hayan cerrado o llenado las inscripciones
     if (myPass) { $('btn-another').classList.add('hidden'); return showPass(myPass); }
-    return closed ? showClosed() : showMsg('😔', 'Cupos agotados', 'Este evento alcanzó su capacidad máxima. Gracias por tu interés.');
+    return closed ? showClosed() : showMsg('😔', 'Cupos agotados', 'Este evento alcanzó su capacidad máxima. Gracias por tu interés.', true);
   }
   renderEvent(spots);
   $('btn-mypass').textContent = myPasses.length > 1 ? 'Ya inscribiste a ' + myPasses.length + ' personas: ver mis pases' : 'Ya te inscribiste: ver mi pase';
@@ -100,7 +100,7 @@ function closeCountdownText() {
   if (days <= 0) return '⏳ Último día para inscribirse (hoy)';
   return '⏳ ' + (days === 1 ? 'Queda 1 día' : 'Quedan ' + days + ' días') + ' para inscribirse · hasta el ' + lastTxt;
 }
-function showClosed() { return showMsg('🔒', 'Inscripciones cerradas', 'Este evento ya no recibe nuevas inscripciones. Si necesitas inscribirte, comunícate con la iglesia.'); }
+function showClosed() { return showMsg('🔒', 'Inscripciones cerradas', 'Este evento ya no recibe nuevas inscripciones. Si necesitas inscribirte, comunícate con la iglesia.', true); }
 async function registrationsOpen() {
   try {
     const { data, error } = await sb.rpc('event_accepts_registrations', { p_event_id: evt.id });
@@ -180,7 +180,7 @@ async function postToGoogleScript(payload) {
 
 // Inscripción repetida (mismo nombre y celular en este evento). La función SQL es opcional:
 // si no existe se omite, y la base de datos igual impide el duplicado.
-const DUP_MSG = 'Ya existe una inscripción con este nombre y celular en este evento. Si necesitas tu pase, comunícate con la iglesia.';
+const DUP_MSG = 'Ya existe una inscripción con este nombre y celular en este evento. Si necesitas tu pase, toca «Recupéralo aquí» debajo del formulario.';
 async function alreadyRegistered(name, phone) {
   try {
     const { data, error } = await sb.rpc('inscripcion_duplicada', { p_event_id: evt.id, p_name: name, p_phone: phone });
@@ -233,7 +233,7 @@ $('reg-form').addEventListener('submit', async (e) => {
 
     // Volver a revisar cupos justo antes de inscribir
     const spots = await remainingSpots();
-    if (spots !== null && spots <= 0) return showMsg('😔', 'Cupos agotados', 'Este evento alcanzó su capacidad máxima.');
+    if (spots !== null && spots <= 0) return showMsg('😔', 'Cupos agotados', 'Este evento alcanzó su capacidad máxima.', true);
 
     const code = newCode();
     let paymentStatus = 'Exento';
@@ -282,6 +282,52 @@ $('reg-form').addEventListener('submit', async (e) => {
     showPass(myPass);
   } finally {
     btn.disabled = false; prog.classList.add('hidden');
+  }
+});
+
+
+// ---- Recuperar un pase ya existente (nombre completo + celular) ----
+let lookupFrom = 'st-form';
+function lookupError(msg) { const e = $('lk-error'); e.textContent = msg || ''; e.classList.toggle('hidden', !msg); }
+function openLookup(from) {
+  lookupFrom = from;
+  $('lookup-form').reset();
+  lookupError('');
+  show('st-lookup');
+}
+$('btn-lookup-open').addEventListener('click', () => openLookup('st-form'));
+$('msg-lookup').addEventListener('click', () => openLookup('st-msg'));
+$('btn-lookup-back').addEventListener('click', () => show(lookupFrom));
+$('lookup-form').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  lookupError('');
+  const name = $('lk-name').value.replace(/\s+/g, ' ').trim();
+  const phone = $('lk-phone').value.trim();
+  if (name.length < 3) return lookupError('Escribe tu nombre completo.');
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length < 8 || digits.length > 15) return lookupError('Escribe tu número de celular (8 dígitos).');
+  const btn = $('btn-lookup');
+  btn.disabled = true; btn.textContent = 'Buscando...';
+  try {
+    const { data, error } = await sb.rpc('buscar_mi_pase', { p_event_id: evt.id, p_name: name, p_phone: phone });
+    if (error) {
+      console.error(error);
+      return lookupError('Por ahora no se puede recuperar el pase desde aquí. Comunícate con la iglesia.');
+    }
+    if (!data || !data.code) {
+      return lookupError('No encontramos una inscripción con ese nombre y celular. Revisa que estén escritos igual que al inscribirte, o comunícate con la iglesia.');
+    }
+    const p = { code: data.code, name: data.name, phone: data.phone, age: data.age, isPaid: !!data.is_paid, paymentMethod: data.payment_method, paymentStatus: data.payment_status };
+    const i = myPasses.findIndex(x => x.code === p.code);
+    if (i >= 0) myPasses[i] = p; else myPasses.push(p);
+    savePasses();
+    // Si las inscripciones están cerradas o llenas no se ofrece inscribir a otra persona
+    $('btn-another').classList.toggle('hidden', lookupFrom === 'st-msg');
+    showPass(p);
+  } catch (e) {
+    lookupError('No pudimos buscar tu pase. Revisa tu conexión e inténtalo de nuevo.');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Buscar mi pase';
   }
 });
 

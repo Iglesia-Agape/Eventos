@@ -51,6 +51,7 @@
     <div id="msg-icon" class="text-4xl"></div>
     <h2 id="msg-title" class="text-lg font-bold text-white"></h2>
     <p id="msg-text" class="text-sm text-slate-400 max-w-sm mx-auto"></p>
+    <button id="msg-lookup" type="button" class="hidden mx-auto mt-2 px-4 py-2 text-xs font-semibold rounded-xl bg-indigo-500/10 text-indigo-300 border border-indigo-500/30">¿Ya te inscribiste? Recupera tu pase</button>
   </div>
 
   <!-- Formulario -->
@@ -71,8 +72,8 @@
     <button id="btn-mypass" type="button" class="hidden w-full py-2.5 text-xs font-semibold rounded-xl bg-emerald-500/10 text-emerald-300 border border-emerald-500/30">Ya te inscribiste: ver mi pase</button>
 
     <!-- Canales de pago (solo eventos de pago) -->
-    <section id="pay-channels" class="hidden border rounded-2xl p-4 space-y-3" style="background-color: rgba(6, 78, 59, 0.6); border-color: rgba(16, 185, 129, 0.5);"
-      <h3 class="text-xs font-bold uppercase tracking-wider text-emerald-300">Métodos de pago oficiales</h3>
+    <section id="pay-channels" class="hidden bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
+      <h3 class="text-xs font-bold uppercase tracking-wider text-indigo-400">Métodos de pago oficiales</h3>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
         <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1.5">
           <p class="font-bold text-red-400">BAC Credomatic <span class="text-[10px] text-slate-500 font-mono font-normal">Transferencia</span></p>
@@ -129,6 +130,32 @@
         <span id="progress-text">Procesando...</span>
       </div>
       <button id="btn-submit" type="submit" class="w-full py-3.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 disabled:opacity-60 text-white font-bold text-sm rounded-2xl shadow-xl shadow-indigo-600/25 transition">Completar inscripción y obtener pase QR</button>
+    </form>
+
+    <div class="text-center">
+      <button id="btn-lookup-open" type="button" class="text-xs text-indigo-400 hover:text-indigo-300 underline underline-offset-2">¿Ya te inscribiste y no tienes tu pase? Recupéralo aquí</button>
+    </div>
+  </div>
+
+  <!-- Recuperar pase -->
+  <div id="st-lookup" class="hidden space-y-5">
+    <div class="text-center space-y-1">
+      <div class="text-3xl">🎟️</div>
+      <h2 class="text-xl font-bold text-white">Recupera tu pase</h2>
+      <p class="text-xs text-slate-400 max-w-sm mx-auto">Escribe tu nombre completo y tu celular, tal como los pusiste al inscribirte.</p>
+    </div>
+    <form id="lookup-form" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4" novalidate>
+      <div>
+        <label for="lk-name" class="block text-xs font-medium text-slate-300 mb-1">Nombre completo</label>
+        <input id="lk-name" type="text" maxlength="120" autocomplete="name" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 text-base sm:text-sm text-white focus:outline-none focus:border-indigo-500">
+      </div>
+      <div>
+        <label for="lk-phone" class="block text-xs font-medium text-slate-300 mb-1">Celular</label>
+        <input id="lk-phone" type="tel" inputmode="tel" maxlength="20" autocomplete="tel" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 text-base sm:text-sm text-white focus:outline-none focus:border-indigo-500">
+      </div>
+      <p id="lk-error" class="hidden text-xs p-3 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-300"></p>
+      <button id="btn-lookup" type="submit" class="w-full py-3.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 disabled:opacity-60 text-white font-bold text-sm rounded-2xl transition">Buscar mi pase</button>
+      <button id="btn-lookup-back" type="button" class="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-xl">Volver</button>
     </form>
   </div>
 
