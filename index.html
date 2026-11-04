@@ -41,7 +41,8 @@
     body.role-staff [onclick^="startEditEvent"],
     body.role-staff [onclick^="deleteCurrentEvent"],
     body.role-staff [onclick^="toggleRegistrationOpen"],
-    body.role-staff [onclick^="ensureDriveFolderForCurrentEvent"] { display: none !important; }
+    body.role-staff [onclick^="ensureDriveFolderForCurrentEvent"],
+    body.role-staff [onclick^="openImportModal"] { display: none !important; }
     @media print {
       body * { visibility: hidden; }
       #print-area, #print-area * { visibility: visible; }
@@ -263,6 +264,10 @@
                 <button onclick="openRegistrantModal()" id="btn-add-registrant" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg flex items-center gap-1.5 transition shadow-lg shadow-indigo-500/20" title="Inscribir a una persona desde el panel">
                   <i data-lucide="user-plus" class="w-3.5 h-3.5"></i>
                   Inscribir persona
+                </button>
+                <button onclick="openImportModal()" id="btn-import-csv" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-lg border border-slate-700 flex items-center gap-1.5 transition" title="Agregar varias personas desde un archivo CSV">
+                  <i data-lucide="upload" class="w-3.5 h-3.5"></i>
+                  Importar CSV
                 </button>
                 <button onclick="exportCSV()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-lg border border-slate-700 flex items-center gap-1.5 transition">
                   <i data-lucide="download" class="w-3.5 h-3.5"></i>
@@ -613,6 +618,84 @@
           <button type="submit" id="btn-save-registrant" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white text-xs font-semibold rounded-lg shadow-lg shadow-indigo-500/20 transition">Guardar</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL: IMPORTAR INSCRITOS DESDE CSV         -->
+  <!-- ========================================== -->
+  <div id="modal-import" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-2xl w-full p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+      <button type="button" onclick="closeImportModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-xl hover:bg-slate-800 transition" title="Cerrar">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+      <div class="pr-8 mb-4">
+        <h3 class="text-base font-bold text-white">Importar inscritos desde un archivo CSV</h3>
+        <p id="imp-subtitle" class="text-xs text-slate-400 mt-0.5"></p>
+      </div>
+
+      <!-- Paso 1: archivo -->
+      <div id="imp-step-file" class="space-y-4">
+        <p class="text-xs text-slate-300 leading-relaxed">Sube un archivo <strong>.csv</strong> con una fila de encabezados y una persona por fila (sirve el que se descarga de Google Forms, Google Sheets o Excel). En el siguiente paso eliges qué columna va en cada dato.</p>
+        <div class="relative border-2 border-dashed border-slate-700 hover:border-indigo-500/60 rounded-2xl p-6 bg-slate-950/60 text-center transition">
+          <input id="imp-file" type="file" accept=".csv,text/csv,text/plain" onchange="impOnFile(this)" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+          <p class="text-xs text-slate-200 font-medium pointer-events-none">Toca aquí para elegir el archivo CSV</p>
+          <p class="text-[11px] text-slate-500 pointer-events-none mt-1">Hasta 2,000 personas por archivo.</p>
+        </div>
+        <button type="button" onclick="downloadImportTemplate()" class="text-[11px] text-indigo-400 hover:text-indigo-300 underline">Descargar plantilla con los campos de este evento</button>
+        <p id="imp-error" class="hidden text-xs p-3 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-300"></p>
+      </div>
+
+      <!-- Paso 2: columnas y revisión -->
+      <div id="imp-step-map" class="hidden space-y-4">
+        <div>
+          <p class="text-xs font-semibold text-slate-200 mb-2">1. ¿Qué columna del archivo corresponde a cada dato?</p>
+          <div id="imp-map" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+        </div>
+        <div id="imp-pay" class="hidden grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-slate-800">
+          <div>
+            <label for="imp-method" class="block text-[11px] font-medium text-slate-300 mb-1">Método de pago de los importados</label>
+            <select id="imp-method" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500">
+              <option value="Efectivo">Efectivo</option>
+              <option value="BAC Credomatic">Transferencia BAC Credomatic</option>
+              <option value="PayPal">PayPal</option>
+              <option value="POS">POS</option>
+            </select>
+          </div>
+          <div>
+            <label for="imp-status" class="block text-[11px] font-medium text-slate-300 mb-1">Estado de pago de los importados</label>
+            <select id="imp-status" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500">
+              <option value="Pendiente Pago (Efectivo)">Pendiente Efectivo (Cafetería)</option>
+              <option value="Pendiente Pago (POS)">Pendiente POS (Cafetería)</option>
+              <option value="En Revisión">En Revisión</option>
+              <option value="Pagado">Pagado</option>
+            </select>
+          </div>
+        </div>
+        <div class="pt-3 border-t border-slate-800 space-y-3">
+          <p class="text-xs font-semibold text-slate-200">2. Revisa antes de importar</p>
+          <div id="imp-summary" class="flex flex-wrap gap-2 text-[11px]"></div>
+          <div id="imp-preview" class="overflow-x-auto rounded-xl border border-slate-800"></div>
+          <div id="imp-issues" class="hidden text-[11px] p-3 rounded-xl bg-amber-950/40 border border-amber-500/30 text-amber-200 space-y-1 max-h-32 overflow-y-auto"></div>
+        </div>
+        <p id="imp-error2" class="hidden text-xs p-3 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-300"></p>
+        <div id="imp-progress" class="hidden text-xs p-3 rounded-xl bg-indigo-950/40 border border-indigo-500/30 text-indigo-300 flex items-center gap-2.5">
+          <div class="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin"></div>
+          <span id="imp-progress-text">Importando...</span>
+        </div>
+        <div class="flex justify-between gap-2 pt-1">
+          <button type="button" id="btn-imp-back" onclick="impBack()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-lg">Cambiar archivo</button>
+          <button type="button" id="btn-imp-run" onclick="runImport()" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-semibold rounded-lg shadow-lg shadow-indigo-500/20">Importar</button>
+        </div>
+      </div>
+
+      <!-- Paso 3: resultado -->
+      <div id="imp-step-done" class="hidden space-y-4">
+        <div id="imp-done-body" class="space-y-3 text-xs text-slate-300"></div>
+        <div class="flex justify-end">
+          <button type="button" onclick="closeImportModal()" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg">Listo</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -2412,6 +2495,355 @@ function closePassModal() {
     }
 
     document.getElementById('registrant-form').addEventListener('submit', saveRegistrant);
+
+    // ==========================================
+    // IMPORTAR INSCRITOS DESDE UN ARCHIVO CSV (solo administrador)
+    // ==========================================
+    let imp = null;
+    const IMP_MAX_ROWS = 2000;
+    const impNorm = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+
+    function impStep(n) {
+      ['imp-step-file', 'imp-step-map', 'imp-step-done'].forEach((id, i) => document.getElementById(id).classList.toggle('hidden', i !== n));
+    }
+    function impError(msg, id) {
+      const el = document.getElementById(id || 'imp-error');
+      el.textContent = msg || '';
+      el.classList.toggle('hidden', !msg);
+    }
+
+    function openImportModal() {
+      if (isStaffRole()) return;
+      const evt = state.events.find(e => e.id === state.currentEventId);
+      if (!evt) return showToast('Primero selecciona o crea un evento.', 'warning');
+      imp = { evt, headers: [], rows: [], busy: false };
+      document.getElementById('imp-subtitle').innerText = 'Evento: ' + evt.title;
+      document.getElementById('imp-file').value = '';
+      impError('');
+      impError('', 'imp-error2');
+      impStep(0);
+      document.getElementById('modal-import').classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function closeImportModal() {
+      if (imp && imp.busy) return;
+      document.getElementById('modal-import').classList.add('hidden');
+      imp = null;
+    }
+
+    function impBack() {
+      if (!imp || imp.busy) return;
+      document.getElementById('imp-file').value = '';
+      impError('');
+      impStep(0);
+    }
+
+    // Lector de CSV: comillas, saltos de línea dentro de una celda y separador , ; o tabulador
+    function parseCSVText(text) {
+      text = String(text || '').replace(/^\uFEFF/, '');
+      const first = text.split(/\r?\n/, 1)[0] || '';
+      const counts = { ',': 0, ';': 0, '\t': 0 };
+      let q = false;
+      for (const ch of first) {
+        if (ch === '"') q = !q;
+        else if (!q && ch in counts) counts[ch]++;
+      }
+      let delim = ',';
+      if (counts[';'] > counts[delim]) delim = ';';
+      if (counts['\t'] > counts[delim]) delim = '\t';
+      const rows = [];
+      let row = [], field = '', inQ = false;
+      for (let i = 0; i < text.length; i++) {
+        const c = text[i];
+        if (inQ) {
+          if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else inQ = false; }
+          else field += c;
+        } else if (c === '"' && field === '') inQ = true;
+        else if (c === delim) { row.push(field); field = ''; }
+        else if (c === '\n' || c === '\r') {
+          if (c === '\r' && text[i + 1] === '\n') i++;
+          row.push(field); field = ''; rows.push(row); row = [];
+        } else field += c;
+      }
+      if (field !== '' || row.length) { row.push(field); rows.push(row); }
+      return rows.filter(r => r.some(x => String(x).trim() !== ''));
+    }
+
+    async function impOnFile(input) {
+      const file = input.files && input.files[0];
+      if (!file || !imp) return;
+      impError('');
+      if (file.size > 5 * 1024 * 1024) return impError('El archivo pesa más de 5 MB. Divídelo en partes.');
+      let rows;
+      try {
+        const buf = await file.arrayBuffer();
+        let text = new TextDecoder('utf-8').decode(buf);
+        if (text.includes('\uFFFD')) text = new TextDecoder('windows-1252').decode(buf);   // CSV viejos de Excel
+        rows = parseCSVText(text);
+      } catch (e) {
+        return impError('No se pudo leer el archivo. Guárdalo de nuevo como CSV e inténtalo otra vez.');
+      }
+      if (rows.length < 2) return impError('El archivo no tiene datos. Debe tener una fila de encabezados y al menos una persona.');
+      if (rows.length - 1 > IMP_MAX_ROWS) return impError('El archivo tiene más de ' + IMP_MAX_ROWS + ' filas. Divídelo en partes.');
+      imp.headers = rows[0].map(h => String(h || '').replace(/\s+/g, ' ').trim());
+      imp.rows = rows.slice(1);
+      impBuildMapping();
+      impStep(1);
+      impRefresh();
+    }
+
+    function impGuessColumn(field, hs, used) {
+      const find = (fn) => { for (let i = 0; i < hs.length; i++) if (!used.has(i) && hs[i] && fn(hs[i])) return i; return -1; };
+      const lab = impNorm(field.label);
+      const keys = field.key === 'name' ? ['nombre', 'name'] : field.key === 'phone' ? ['telefono', 'celular', 'cel', 'phone', 'whatsapp'] : field.key === 'age' ? ['edad', 'age'] : [];
+      let i = lab ? find(h => h === lab) : -1;
+      if (i < 0 && lab) i = find(h => h.includes(lab) || (h.length >= 4 && lab.includes(h)));
+      if (i < 0 && keys.length) i = find(h => keys.some(k => h.includes(k)));
+      return i;
+    }
+
+    function impBuildMapping() {
+      const evt = imp.evt;
+      const fields = FormFields.visibleFields(evt.formFields);
+      const hs = imp.headers.map(impNorm);
+      const used = new Set();
+      const box = document.getElementById('imp-map');
+      box.innerHTML = '';
+      const mk = (id, labelText, guess) => {
+        const wrap = document.createElement('div');
+        const lb = document.createElement('label');
+        lb.className = 'block text-[11px] font-medium text-slate-300 mb-1';
+        lb.htmlFor = 'imp-map-' + id;
+        lb.textContent = labelText;
+        const sel = document.createElement('select');
+        sel.id = 'imp-map-' + id;
+        sel.className = 'w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500';
+        sel.add(new Option('— No importar —', ''));
+        imp.headers.forEach((h, i) => sel.add(new Option(h || ('(columna ' + (i + 1) + ')'), String(i))));
+        if (guess >= 0) sel.value = String(guess);
+        sel.addEventListener('change', impRefresh);
+        wrap.appendChild(lb);
+        wrap.appendChild(sel);
+        box.appendChild(wrap);
+      };
+      fields.forEach(f => {
+        const g = impGuessColumn(f, hs, used);
+        if (g >= 0) used.add(g);
+        mk(f.id, f.label + (f.required ? ' *' : ''), g);
+      });
+      let dg = -1;
+      for (let i = 0; i < hs.length; i++) if (!used.has(i) && /marca temporal|fecha|timestamp|hora/.test(hs[i])) { dg = i; break; }
+      mk('date', 'Fecha y hora de inscripción (opcional)', dg);
+      document.getElementById('imp-pay').classList.toggle('hidden', !evt.isPaid);
+      impError('', 'imp-error2');
+      document.getElementById('imp-progress').classList.add('hidden');
+      document.getElementById('btn-imp-run').disabled = false;
+      document.getElementById('btn-imp-back').disabled = false;
+    }
+
+    // Fechas: formato de Google Forms ("2026/10/25 10:26:43 a.m. GMT-6"), día/mes/año o ISO. Sin zona = hora de Honduras (-6).
+    function impParseDate(v) {
+      const t = String(v || '').trim();
+      if (!t) return null;
+      const mk = (y, mo, d, h, mi, se, tz) => {
+        const ms = Date.UTC(y, mo - 1, d, h, mi, se) - tz * 3600000;
+        const dt = new Date(ms);
+        return isNaN(dt) || mo < 1 || mo > 12 || d < 1 || d > 31 ? null : dt.toISOString();
+      };
+      let m = t.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2}) (\d{1,2}):(\d{2}):(\d{2}) ([ap])\.?m\.? GMT([+-]\d+)$/i);
+      if (m) return mk(+m[1], +m[2], +m[3], (+m[4] % 12) + (m[7].toLowerCase() === 'p' ? 12 : 0), +m[5], +m[6], +m[8]);
+      m = t.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+      if (m) return mk(+m[3], +m[2], +m[1], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0), -6);
+      const d = new Date(t);
+      return isNaN(d) ? null : d.toISOString();
+    }
+
+    // Convierte las filas del archivo en inscripciones válidas, duplicadas o con errores
+    function impBuild() {
+      const evt = imp.evt;
+      const fields = FormFields.visibleFields(evt.formFields);
+      const col = {};
+      fields.forEach(f => { const v = document.getElementById('imp-map-' + f.id).value; col[f.id] = v === '' ? -1 : parseInt(v, 10); });
+      const dv = document.getElementById('imp-map-date').value;
+      const dateCol = dv === '' ? -1 : parseInt(dv, 10);
+      const dupKey = (name, phone) => normNombre(name) + '|' + normCelular(phone);
+      const seen = new Set(state.registrations.filter(r => r.eventId === evt.id).map(r => dupKey(r.name, r.phone)));
+      const items = [], dups = [], bad = [];
+      let incomplete = 0;
+      imp.rows.forEach((raw, i) => {
+        const line = i + 2;
+        const get = (f) => col[f.id] >= 0 ? String(raw[col[f.id]] ?? '').replace(/\s+/g, ' ').trim() : '';
+        let name = '', phone = null, age = null;
+        const extra = {}, warns = [];
+        fields.forEach(f => {
+          const v = get(f);
+          if (f.key === 'name') { name = v.slice(0, 120); return; }
+          if (f.key === 'phone') {
+            if (v) { const d = v.replace(/\D/g, ''); if (d.length >= 8 && d.length <= 15) phone = v.slice(0, 20); else warns.push('celular no válido ("' + v + '")'); }
+            else if (f.required) warns.push('sin celular');
+            return;
+          }
+          if (f.key === 'age') {
+            if (v) { const a = parseInt(v, 10); if (Number.isInteger(a) && a >= 1 && a <= 120) age = a; else warns.push('edad no válida ("' + v + '")'); }
+            else if (f.required) warns.push('sin edad');
+            return;
+          }
+          if (!v) { if (f.required) warns.push('falta ' + f.label); return; }
+          if (f.type === 'select') {
+            const opt = (f.options || []).find(o => impNorm(o) === impNorm(v));
+            if (opt) extra[f.id] = opt; else warns.push(f.label + ': "' + v + '" no está en la lista');
+          } else if (f.type === 'yesno') {
+            const n = impNorm(v);
+            if (['si', 's', 'yes', 'y', 'true', '1', 'x'].includes(n)) extra[f.id] = 'Sí';
+            else if (['no', 'n', 'false', '0'].includes(n)) extra[f.id] = 'No';
+            else warns.push(f.label + ': "' + v + '" no es Sí/No');
+          } else if (f.type === 'number') {
+            if (isFinite(Number(v.replace(',', '.')))) extra[f.id] = v.slice(0, 40); else warns.push(f.label + ': "' + v + '" no es un número');
+          } else {
+            extra[f.id] = v.slice(0, f.type === 'textarea' ? 500 : 200);
+          }
+        });
+        if (name.length < 3) { bad.push({ line, name: name || '(vacío)', msg: 'sin nombre' }); return; }
+        const key = dupKey(name, phone);
+        if (seen.has(key)) { dups.push({ line, name }); return; }
+        seen.add(key);
+        let created_at = null;
+        if (dateCol >= 0 && raw[dateCol] && String(raw[dateCol]).trim()) {
+          created_at = impParseDate(raw[dateCol]);
+          if (!created_at) warns.push('fecha no reconocida (se usa la de hoy)');
+        }
+        if (warns.length) incomplete++;
+        items.push({ line, name, phone, age, extra, created_at, warns });
+      });
+      return { fields, items, dups, bad, incomplete };
+    }
+
+    function impRefresh() {
+      if (!imp) return;
+      const b = impBuild();
+      imp.built = b;
+      const chip = (txt, cls) => '<span class="px-2.5 py-1 rounded-lg border font-semibold ' + cls + '">' + txt + '</span>';
+      let sum = chip(b.items.length + ' para importar', 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30');
+      if (b.dups.length) sum += chip(b.dups.length + ' ya inscritas (se omiten)', 'bg-slate-800 text-slate-300 border-slate-700');
+      if (b.bad.length) sum += chip(b.bad.length + ' sin nombre (se omiten)', 'bg-rose-500/10 text-rose-300 border-rose-500/30');
+      if (b.incomplete) sum += chip(b.incomplete + ' con datos incompletos (se importan igual)', 'bg-amber-500/10 text-amber-300 border-amber-500/30');
+      document.getElementById('imp-summary').innerHTML = sum;
+
+      const head = b.fields.map(f => '<th class="px-2.5 py-1.5 text-left font-semibold text-slate-400 whitespace-nowrap">' + esc(f.label) + '</th>').join('');
+      const body = b.items.slice(0, 5).map(it => '<tr class="border-t border-slate-800">' + b.fields.map(f => {
+        const v = f.key === 'name' ? it.name : f.key === 'phone' ? it.phone : f.key === 'age' ? it.age : it.extra[f.id];
+        return '<td class="px-2.5 py-1.5 text-slate-200 whitespace-nowrap">' + esc(v == null || v === '' ? '—' : v) + '</td>';
+      }).join('') + '</tr>').join('');
+      document.getElementById('imp-preview').innerHTML = b.items.length
+        ? '<table class="w-full text-[11px]"><thead class="bg-slate-950"><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table>' +
+          (b.items.length > 5 ? '<p class="px-2.5 py-1.5 text-[10px] text-slate-500 border-t border-slate-800">Vista previa de las primeras 5 de ' + b.items.length + '.</p>' : '')
+        : '<p class="p-3 text-[11px] text-slate-400">Nada para importar con esta selección de columnas.</p>';
+
+      const lines = [];
+      b.bad.slice(0, 6).forEach(x => lines.push('Fila ' + x.line + ': ' + esc(x.msg)));
+      b.items.filter(it => it.warns.length).slice(0, 8).forEach(it => lines.push('Fila ' + it.line + ' (' + esc(it.name) + '): ' + esc(it.warns.join('; '))));
+      const iss = document.getElementById('imp-issues');
+      iss.classList.toggle('hidden', !lines.length);
+      iss.innerHTML = lines.length ? '<p class="font-semibold">Avisos (primeros ' + lines.length + '):</p>' + lines.map(l => '<p>• ' + l + '</p>').join('') : '';
+
+      const run = document.getElementById('btn-imp-run');
+      run.textContent = b.items.length ? 'Importar ' + b.items.length + (b.items.length === 1 ? ' persona' : ' personas') : 'Importar';
+      run.disabled = !b.items.length || imp.busy;
+    }
+
+    function impUniqueCode(used) {
+      const a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      for (;;) {
+        const code = Array.from(crypto.getRandomValues(new Uint8Array(6)), v => a[v % a.length]).join('');
+        if (!used.has(code)) { used.add(code); return code; }
+      }
+    }
+
+    async function runImport() {
+      if (!imp || imp.busy || isStaffRole()) return;
+      const evt = imp.evt;
+      const b = impBuild();
+      if (!b.items.length) return;
+      impError('', 'imp-error2');
+      const current = state.registrations.filter(r => r.eventId === evt.id).length;
+      if (evt.capacity && current + b.items.length > evt.capacity &&
+          !confirm('Con esta importación el evento tendría ' + (current + b.items.length) + ' inscritos y su capacidad es ' + evt.capacity + '.\n\n¿Importar de todos modos?')) return;
+
+      imp.busy = true;
+      const runBtn = document.getElementById('btn-imp-run');
+      runBtn.disabled = true;
+      document.getElementById('btn-imp-back').disabled = true;
+      const prog = document.getElementById('imp-progress');
+      const progText = document.getElementById('imp-progress-text');
+      prog.classList.remove('hidden');
+
+      const method = evt.isPaid ? document.getElementById('imp-method').value : 'Gratuito';
+      const status = evt.isPaid ? document.getElementById('imp-status').value : 'Exento';
+      const nowIso = new Date().toISOString();
+      const base = Date.now();
+      const used = new Set(state.registrations.map(r => r.code));
+      const rows = b.items.map((it, i) => ({
+        id: 'reg-' + (base + i) + '-' + Math.random().toString(36).slice(2, 6),
+        event_id: evt.id, code: impUniqueCode(used), name: it.name, phone: it.phone, age: it.age,
+        is_paid: !!evt.isPaid, payment_method: method, payment_status: status, receipt_url: null,
+        attended: false, attended_at: null, created_at: it.created_at || nowIso, extra_data: it.extra
+      }));
+
+      const ok = [], dup = [], fail = [];
+      try {
+        for (let i = 0; i < rows.length; i += 40) {
+          const chunk = rows.slice(i, i + 40);
+          progText.textContent = 'Importando ' + Math.min(i + chunk.length, rows.length) + ' de ' + rows.length + '...';
+          if (!supabaseClient) { ok.push(...chunk); continue; }
+          const res = await supabaseClient.from('registrations').insert(chunk);
+          if (!res.error) { ok.push(...chunk); continue; }
+          // Algún registro del grupo falló: se prueba uno por uno para saber cuál
+          for (const r of chunk) {
+            const one = await supabaseClient.from('registrations').insert([r]);
+            if (!one.error) ok.push(r);
+            else if (String(one.error.message || '').includes('uq_registrations_event_name_phone')) dup.push(r);
+            else fail.push({ r, msg: one.error.message });
+          }
+        }
+      } catch (e) {
+        fail.push({ r: { name: '(error de conexión)' }, msg: String(e && e.message || e) });
+      }
+
+      ok.forEach(r => {
+        if (state.registrations.some(x => x.id === r.id)) return;
+        state.registrations.unshift({ id: r.id, eventId: r.event_id, code: r.code, name: r.name, dni: null, email: null, phone: r.phone, age: r.age,
+          isPaid: r.is_paid, paymentMethod: r.payment_method, paymentStatus: r.payment_status, receiptUrl: null, attended: false,
+          createdAt: r.created_at, extraData: r.extra_data });
+      });
+      saveLocalData();
+      renderCurrentEventDetails();
+
+      const omitted = b.dups.length + dup.length;
+      let html = '<div class="text-sm font-bold ' + (ok.length ? 'text-emerald-300' : 'text-amber-300') + '">' +
+        (ok.length ? '✓ Se importaron ' + ok.length + (ok.length === 1 ? ' persona' : ' personas') : 'No se importó ninguna persona') + '</div>';
+      if (omitted) html += '<p>Omitidas por ya estar inscritas: <strong>' + omitted + '</strong>' +
+        (b.dups.length ? ' (' + b.dups.slice(0, 8).map(d => esc(d.name)).join(', ') + (b.dups.length > 8 ? '…' : '') + ')' : '') + '.</p>';
+      if (b.bad.length) html += '<p>Omitidas por no tener nombre: <strong>' + b.bad.length + '</strong> (filas ' + b.bad.slice(0, 10).map(x => x.line).join(', ') + (b.bad.length > 10 ? '…' : '') + ').</p>';
+      if (fail.length) html += '<p class="text-rose-300">No se pudieron guardar <strong>' + fail.length + '</strong>: ' + esc(fail[0].msg) + '. Puedes volver a importar el mismo archivo: lo ya guardado se omite.</p>';
+      if (ok.length) html += '<p class="text-slate-400">Las personas importadas ya aparecen en la tabla. Cada una tiene su código de pase; puedes enviarle el pase desde su fila.</p>';
+      document.getElementById('imp-done-body').innerHTML = html;
+      imp.busy = false;
+      impStep(2);
+      if (ok.length) showToast(ok.length + ' inscritos importados.', 'success');
+    }
+
+    function downloadImportTemplate() {
+      const evt = state.events.find(e => e.id === state.currentEventId);
+      if (!evt) return;
+      const headers = FormFields.visibleFields(evt.formFields).map(f => f.label).concat(['Fecha y hora de inscripción (opcional)']);
+      const csv = '\uFEFF' + headers.map(csvCell).join(',') + '\n';
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const a = document.createElement('a');
+      a.href = window.URL.createObjectURL(blob);
+      a.download = 'Plantilla_importar_' + (evt.title || 'evento').replace(/\s+/g, '_') + '.csv';
+      a.click();
+    }
 
     async function handleCreateEvent(e) {
       if (isStaffRole()) { if (e && e.preventDefault) e.preventDefault(); return; }
