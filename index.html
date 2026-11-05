@@ -1940,8 +1940,15 @@ function closePassModal() {
       const src = state.events.find(e => e.id === evId);
       if (sel) sel.value = '';
       if (!src) return;
-      draftFormFields = FormFields.normalizeFormFields(src.formFields).map(f =>
-        f.key === 'extra' ? Object.assign({}, f, { id: FormFields.newFieldId() }) : f);
+      const copied = FormFields.normalizeFormFields(src.formFields);
+      const idMap = {};
+      copied.forEach(f => { if (f.key === 'extra') idMap[f.id] = FormFields.newFieldId(); });
+      draftFormFields = copied.map(f => {
+        if (f.key !== 'extra') return f;
+        const c = Object.assign({}, f, { id: idMap[f.id] });
+        if (c.showIf && idMap[c.showIf.field]) c.showIf = { field: idMap[c.showIf.field], value: c.showIf.value };
+        return c;
+      });
       renderFieldsEditor();
       showToast('Campos copiados de "' + src.title + '". Revísalos y guarda el evento.', 'success');
     }
@@ -2003,7 +2010,20 @@ function closePassModal() {
         f.enabled = el.checked;
         if (!f.enabled) f.required = false;
         renderFieldsEditor();
-      } else if (k === 'options') f.options = String(el.value || '').split('\n');
+      } else if (k === 'options') {
+        f.options = String(el.value || '').split('\n');
+        if (e.type === 'change') renderFieldsEditor();   // al terminar de editar, se actualizan las condiciones que dependen de esta lista
+      } else if (k === 'showField') {
+        if (!el.value) delete f.showIf;
+        else {
+          const ctrl = draftFormFields.find(x => x.id === el.value);
+          const vals = ctrl ? (ctrl.type === 'yesno' ? ['Sí', 'No'] : (ctrl.options || []).filter(Boolean)) : [];
+          f.showIf = { field: el.value, value: vals[0] || '' };
+        }
+        renderFieldsEditor();
+      } else if (k === 'showValue') {
+        if (f.showIf) f.showIf.value = el.value;
+      }
     }
 
     function renderFieldsEditor() {
@@ -2086,6 +2106,43 @@ function closePassModal() {
         reqL.appendChild(document.createTextNode(field.key === 'name' ? 'Obligatorio (pase)' : 'Obligatorio'));
         row.appendChild(reqL);
         card.appendChild(row);
+
+        if (!sys) {
+          const idx = draftFormFields.indexOf(field);
+          const ctrls = draftFormFields.slice(0, idx).filter(x => x.key === 'extra' && (x.type === 'select' || x.type === 'yesno') && (x.type === 'yesno' || (x.options || []).length));
+          if (!ctrls.length) {
+            const tip = document.createElement('p');
+            tip.className = 'text-[10px] text-slate-500';
+            tip.textContent = 'Para mostrar este campo solo si otra respuesta es cierta, agrega antes una lista o un Sí/No.';
+            card.appendChild(tip);
+          } else {
+            const cw = document.createElement('div');
+            cw.className = 'flex flex-wrap items-center gap-2 text-[11px] text-slate-300';
+            const mkSel = (k) => {
+              const sel = document.createElement('select');
+              sel.dataset.fid = field.id;
+              sel.dataset.k = k;
+              sel.className = 'bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none focus:border-indigo-500 max-w-[11rem]';
+              return sel;
+            };
+            const selF = mkSel('showField');
+            selF.add(new Option('Siempre', ''));
+            ctrls.forEach(c => selF.add(new Option(c.label, c.id)));
+            selF.value = field.showIf ? field.showIf.field : '';
+            cw.appendChild(document.createTextNode('Mostrar'));
+            cw.appendChild(selF);
+            if (field.showIf) {
+              const c = ctrls.find(x => x.id === field.showIf.field);
+              const vals = c ? (c.type === 'yesno' ? ['Sí', 'No'] : (c.options || [])) : [];
+              const selV = mkSel('showValue');
+              vals.forEach(v => selV.add(new Option(v, v)));
+              selV.value = field.showIf.value;
+              cw.appendChild(document.createTextNode('solo si es'));
+              cw.appendChild(selV);
+            }
+            card.appendChild(cw);
+          }
+        }
 
         if (field.type === 'select') {
           const hint = document.createElement('p');
@@ -2593,9 +2650,9 @@ function closePassModal() {
       const regs = state.registrations.filter(r => r.eventId === evt.id);
       const fields = FormFields.visibleFields(evt.formFields);
       const sections = [];
-      const tally = (labelOf) => {
+      const tally = (labelOf, list) => {
         const map = new Map();
-        regs.forEach(r => {
+        (list || regs).forEach(r => {
           const lab = labelOf(r);
           const e = map.get(lab) || { label: lab, total: 0, arrived: 0 };
           e.total++; if (r.attended) e.arrived++;
@@ -2617,26 +2674,28 @@ function closePassModal() {
           return;
         }
         const ans = (r) => { const v = (r.extraData || {})[f.id]; return v == null ? '' : String(v).trim(); };
+        // Un campo condicional solo cuenta a las personas a las que se les preguntó
+        const base = f.showIf ? regs.filter(r => (r.extraData || {})[f.showIf.field] === f.showIf.value) : regs;
         if (f.type === 'select' || f.type === 'yesno') {
           const opts = f.type === 'yesno' ? ['Sí', 'No'] : (f.options || []);
-          const map = tally(r => ans(r) || 'Sin respuesta');
+          const map = tally(r => ans(r) || 'Sin respuesta', base);
           const rows = opts.map(o => map.get(o) || { label: o, total: 0, arrived: 0 });
           if (map.has('Sin respuesta')) rows.push(map.get('Sin respuesta'));
           map.forEach((v, k) => { if (!opts.includes(k) && k !== 'Sin respuesta') rows.push(v); });   // valores que ya no están en la lista
           sections.push({ title: f.label, rows });
         } else if (f.type === 'number') {
-          const vals = regs.map(ans).filter(v => v !== '').map(Number).filter(isFinite);
+          const vals = base.map(ans).filter(v => v !== '').map(Number).filter(isFinite);
           const sum = vals.reduce((a, b) => a + b, 0);
           sections.push({ title: f.label, note: vals.length
             ? vals.length + ' respuestas · suma ' + sum + ' · promedio ' + (sum / vals.length).toFixed(1) + ' · mínimo ' + Math.min(...vals) + ' · máximo ' + Math.max(...vals)
             : 'Sin respuestas todavía.', rows: [] });
         } else if (f.type === 'textarea') {
-          const n = regs.filter(r => ans(r) !== '').length;
+          const n = base.filter(r => ans(r) !== '').length;
           sections.push({ title: f.label, note: n + (n === 1 ? ' persona respondió' : ' personas respondieron') + ' (texto libre; se ve en la tabla y en el CSV).', rows: [] });
         } else {
           // Texto libre (Iglesia, Ciudad...): se agrupa sin importar mayúsculas, tildes ni espacios
           const groups = new Map();
-          regs.forEach(r => {
+          base.forEach(r => {
             const raw = ans(r);
             const key = raw ? impNorm(raw) : '';
             const g = groups.get(key) || { total: 0, arrived: 0, spellings: new Map() };
@@ -3056,6 +3115,7 @@ function closePassModal() {
         let name = '', phone = null, age = null;
         const extra = {}, warns = [];
         fields.forEach(f => {
+          if (f.showIf && extra[f.showIf.field] !== f.showIf.value) return;   // campo condicional que no corresponde a esta persona
           const v = get(f);
           if (f.key === 'name') { name = v.slice(0, 120); return; }
           if (f.key === 'phone') {

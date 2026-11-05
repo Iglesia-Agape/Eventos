@@ -70,10 +70,26 @@
         label: sanitizeLabel(f.label, DEFAULT_LABELS[type]),
         required: !!f.required,
         enabled: true,
-        options: type === 'select' ? sanitizeOptions(f.options) : undefined
+        options: type === 'select' ? sanitizeOptions(f.options) : undefined,
+        showIf: (f.showIf && typeof f.showIf === 'object')
+          ? { field: String(f.showIf.field || '').replace(/[^\w-]/g, '').slice(0, 24), value: String(f.showIf.value == null ? '' : f.showIf.value).slice(0, 80) }
+          : undefined
       });
     });
     // Si falta algún campo fijo, vuelve al inicio en su orden normal
+    // Condiciones "mostrar solo si": solo valen si dependen de una lista o Sí/No que esté ANTES y de una respuesta que exista
+    const earlier = {};
+    out.forEach(f => {
+      if (f.key !== 'extra') return;
+      if (f.showIf) {
+        const c = earlier[f.showIf.field];
+        const values = c ? (c.type === 'yesno' ? YESNO : (c.options || [])) : [];
+        if (!c || values.indexOf(f.showIf.value) === -1) delete f.showIf;
+      } else {
+        delete f.showIf;
+      }
+      if (f.type === 'select' || f.type === 'yesno') earlier[f.id] = f;
+    });
     ['name', 'phone', 'age'].forEach((k, i, order) => {
       if (seenSys[k]) return;
       const row = defaults.find(x => x.key === k);
@@ -102,6 +118,26 @@
     return prefix + 'x-' + field.id;
   }
 
+  function currentValue(prefix, field) {
+    const el = document.getElementById(fieldInputId(prefix, field));
+    return el ? String(el.value || '').trim() : '';
+  }
+
+  // Muestra u oculta los campos que dependen de otra respuesta (en orden, para que funcionen en cadena)
+  function applyConditions(container, fields, prefix) {
+    if (!container) return;
+    const answers = {};
+    visibleFields(fields).forEach(field => {
+      const wrap = container.querySelector('[data-ff-id="' + field.id + '"]');
+      const show = !field.showIf || answers[field.showIf.field] === field.showIf.value;
+      if (wrap) wrap.classList.toggle('hidden', !show);
+      if (show && field.key === 'extra') {
+        const v = currentValue(prefix, field);
+        if (v !== '') answers[field.id] = v;
+      }
+    });
+  }
+
   function renderFormFields(container, fields, opts) {
     if (!container) return;
     const prefix = (opts && opts.prefix) || 'f-';
@@ -112,6 +148,7 @@
     container.innerHTML = '';
     visibleFields(fields).forEach(field => {
       const wrap = document.createElement('div');
+      wrap.setAttribute('data-ff-id', field.id);
       const id = fieldInputId(prefix, field);
       const label = document.createElement('label');
       label.htmlFor = id;
@@ -162,13 +199,20 @@
       wrap.appendChild(input);
       container.appendChild(wrap);
     });
+    if (container._ffOnChange) container.removeEventListener('change', container._ffOnChange);
+    container._ffOnChange = function () { applyConditions(container, fields, prefix); };
+    container.addEventListener('change', container._ffOnChange);
+    applyConditions(container, fields, prefix);
   }
 
   function readFormFields(fields, prefix, admin) {
     const vis = visibleFields(fields);
     const out = { name: '', phone: '', age: null, extraData: {}, error: '' };
+    const answers = {};
     for (let i = 0; i < vis.length; i++) {
       const field = vis[i];
+      // Un campo condicional que no corresponde no se pide ni se guarda
+      if (field.showIf && answers[field.showIf.field] !== field.showIf.value) continue;
       const el = document.getElementById(fieldInputId(prefix, field));
       const raw = el ? String(el.value || '').trim() : '';
       if (field.key === 'name') {
@@ -231,7 +275,7 @@
           out.error = field.label + ' es demasiado largo.';
           return out;
         }
-        if (raw) out.extraData[field.id] = raw;
+        if (raw) { out.extraData[field.id] = raw; answers[field.id] = raw; }
       }
     }
     return out;
@@ -245,6 +289,7 @@
     newFieldId,
     renderFormFields,
     readFormFields,
+    applyConditions,
     fieldInputId,
     MAX_EXTRA,
     DEFAULT_LABELS
