@@ -13,7 +13,7 @@
 
   <!-- Archivo de Configuración Centralizada (Webhook y Supabase) -->
   <script src="config.js"></script>
-  <script src="form-fields.js"></script>
+  <script src="form-fields.js?v=4"></script>
 
   <!-- Tailwind CSS -->
   <link rel="stylesheet" href="estilos.css">
@@ -235,6 +235,17 @@
               <div id="card-stat-paid" class="bg-slate-950/60 p-3 rounded-xl border border-slate-800/60">
                 <p class="text-xs text-slate-400 font-medium">Pagos Aprobados</p>
                 <p id="stat-paid" class="text-2xl font-bold text-indigo-400 mt-0.5">0</p>
+              </div>
+            </div>
+            <div id="money-row" class="hidden grid grid-cols-2 gap-3 mt-3">
+              <div class="bg-slate-950/60 p-3 rounded-xl border border-slate-800/60">
+                <p class="text-xs text-slate-400 font-medium">Recaudado (pagos aprobados)</p>
+                <p id="stat-money-paid" class="text-2xl font-bold text-emerald-400 mt-0.5">L. 0.00</p>
+              </div>
+              <div class="bg-slate-950/60 p-3 rounded-xl border border-slate-800/60">
+                <p class="text-xs text-slate-400 font-medium">Por cobrar</p>
+                <p id="stat-money-due" class="text-2xl font-bold text-amber-400 mt-0.5">L. 0.00</p>
+                <p id="stat-money-due-n" class="text-[10px] text-slate-500"></p>
               </div>
             </div>
           </div>
@@ -599,6 +610,7 @@
           <p id="reg-form-subtitle" class="text-xs text-slate-400 mt-0.5"></p>
         </div>
         <div id="reg-dyn-fields" class="space-y-3"></div>
+        <p id="reg-total" class="hidden text-xs font-semibold p-2.5 rounded-lg bg-emerald-950/40 border border-emerald-500/30 text-emerald-300"></p>
         <div id="reg-pay-section" class="hidden space-y-3 pt-3 border-t border-slate-800">
           <div>
             <label for="reg-method" class="block text-xs font-medium text-slate-300 mb-1">Método de pago</label>
@@ -1257,6 +1269,7 @@
         isPaid: r.is_paid,
         paymentMethod: r.payment_method,
         paymentStatus: r.payment_status,
+        amount: (r.amount != null && isFinite(r.amount)) ? Number(r.amount) : null,
         receiptUrl: r.receipt_url,
         attended: r.attended,
         createdAt: r.created_at,
@@ -1395,6 +1408,20 @@
       document.getElementById('stat-registered').innerText = regs.length;
       document.getElementById('stat-attended').innerText = regs.filter(r => r.attended).length;
       document.getElementById('stat-paid').innerText = regs.filter(r => r.paymentStatus === 'Pagado' || !evt.isPaid).length;
+      const showMoney = !!evt.isPaid && regs.some(r => regAmount(r, evt) > 0);
+      document.getElementById('money-row').classList.toggle('hidden', !showMoney);
+      if (showMoney) {
+        let got = 0, due = 0, dueN = 0;
+        regs.forEach(r => {
+          if (!r.isPaid) return;
+          const a = regAmount(r, evt), ps = r.paymentStatus || '';
+          if (ps === 'Pagado') got += a;
+          else if (ps !== 'Exento' && ps !== 'Rechazado' && a > 0) { due += a; dueN++; }
+        });
+        document.getElementById('stat-money-paid').innerText = fmtL(got);
+        document.getElementById('stat-money-due').innerText = fmtL(due);
+        document.getElementById('stat-money-due-n').innerText = dueN ? dueN + (dueN === 1 ? ' persona pendiente' : ' personas pendientes') : 'Todo al día';
+      }
 
       // Eventos gratuitos: sin tarjeta de pagos ni accesos a Drive (no hay comprobantes)
       document.getElementById('card-stat-paid').classList.toggle('hidden', !evt.isPaid);
@@ -1538,6 +1565,7 @@
               <option value="Rechazado" ${ps === 'Rechazado' ? 'selected' : ''}>Rechazado</option>
               <option value="Exento" ${ps === 'Exento' ? 'selected' : ''}>Exento (Gratis)</option>
             </select>
+            ${regAmount(reg, evt) > 0 ? `<div class="mt-1 text-[10px] font-mono text-slate-400">${esc(fmtL(regAmount(reg, evt)))}</div>` : ''}
           </td>` : '';
         const payCells2 = paid ? `
           <td class="py-3 px-4 text-slate-300 text-[11px]">${esc(reg.paymentMethod || 'N/A')}</td>
@@ -1913,6 +1941,9 @@ function closePassModal() {
       if (bad) return { error: 'La lista "' + bad.label + '" necesita al menos 2 opciones (una por línea).' };
       const empty = fields.find(f => f.key === 'extra' && !String(f.label || '').trim());
       if (empty) return { error: 'Escribe el nombre de cada campo extra.' };
+      if (FormFields.hasPricing(fields) && document.getElementById('new-is-paid').value !== 'true') {
+        return { error: 'El formulario tiene opciones con precio. Eso solo funciona en eventos «De Pago» (si la inscripción es gratis, crea el evento De Pago con precio base 0).' };
+      }
       return { fields };
     }
 
@@ -2010,8 +2041,21 @@ function closePassModal() {
         f.enabled = el.checked;
         if (!f.enabled) f.required = false;
         renderFieldsEditor();
+      } else if (k === 'priceYes') {
+        const n = Math.round(parseFloat(el.value) * 100) / 100;
+        if (n > 0) f.prices = { 'Sí': n }; else delete f.prices;
       } else if (k === 'options') {
-        f.options = String(el.value || '').split('\n');
+        const opts = [], prices = {};
+        String(el.value || '').split('\n').forEach(line => {
+          const i = line.lastIndexOf('|');
+          let label = line, price = 0;
+          if (i >= 0) { label = line.slice(0, i); price = parseFloat(line.slice(i + 1).replace(/[^\d.,]/g, '').replace(',', '.')); }
+          label = label.replace(/\s+/g, ' ').trim();
+          opts.push(label);
+          if (label && price > 0) prices[label] = Math.round(price * 100) / 100;
+        });
+        f.options = opts;
+        if (Object.keys(prices).length) f.prices = prices; else delete f.prices;
         if (e.type === 'change') renderFieldsEditor();   // al terminar de editar, se actualizan las condiciones que dependen de esta lista
       } else if (k === 'showField') {
         if (!el.value) delete f.showIf;
@@ -2032,6 +2076,13 @@ function closePassModal() {
       draftFormFields = FormFields.normalizeFormFields(draftFormFields);
       refreshCopyFieldsSelect();
       box.innerHTML = '';
+      const ffOk = (FormFields.VERSION || 0) >= 4;
+      if (!ffOk) {
+        const warn = document.createElement('p');
+        warn.className = 'text-xs p-3 rounded-xl bg-amber-950/40 border border-amber-500/30 text-amber-200';
+        warn.textContent = 'Falta actualizar el archivo form-fields.js en tu hosting. Sin él no se pueden usar las condiciones ("mostrar solo si...") y no se guardarían. Súbelo y recarga con Cmd+Shift+R.';
+        box.appendChild(warn);
+      }
       draftFormFields.forEach(field => {
         const card = document.createElement('div');
         card.className = 'p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2';
@@ -2107,7 +2158,7 @@ function closePassModal() {
         row.appendChild(reqL);
         card.appendChild(row);
 
-        if (!sys) {
+        if (!sys && ffOk) {
           const idx = draftFormFields.indexOf(field);
           const ctrls = draftFormFields.slice(0, idx).filter(x => x.key === 'extra' && (x.type === 'select' || x.type === 'yesno') && (x.type === 'yesno' || (x.options || []).length));
           if (!ctrls.length) {
@@ -2144,13 +2195,28 @@ function closePassModal() {
           }
         }
 
+        if (field.type === 'yesno' && ffOk) {
+          const pr = document.createElement('div');
+          pr.className = 'flex flex-wrap items-center gap-2 text-[11px] text-slate-300';
+          pr.appendChild(document.createTextNode('Si elige «Sí», suma L.'));
+          const inp = document.createElement('input');
+          inp.type = 'number'; inp.min = '0'; inp.step = '0.01';
+          inp.dataset.fid = field.id; inp.dataset.k = 'priceYes';
+          inp.setAttribute('aria-label', 'Monto que suma si la respuesta es Sí');
+          inp.value = (field.prices && field.prices['Sí']) ? field.prices['Sí'] : '';
+          inp.className = 'w-24 bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-indigo-500';
+          pr.appendChild(inp);
+          pr.appendChild(document.createTextNode('(vacío = no cambia el precio)'));
+          card.appendChild(pr);
+        }
+
         if (field.type === 'select') {
           const hint = document.createElement('p');
           hint.className = 'text-[10px] text-slate-400';
-          hint.textContent = 'Opciones de la lista (una por línea). La persona verá estas opciones y elegirá una.';
+          hint.textContent = 'Opciones de la lista (una por línea). La persona verá estas opciones y elegirá una. Para que una opción cueste extra, escribe una barra | y el monto después de ella.';
           const ta = document.createElement('textarea');
           ta.rows = 3;
-          ta.value = (field.options || []).join('\n');
+          ta.value = (field.options || []).map(o => (field.prices && field.prices[o]) ? o + ' | ' + field.prices[o] : o).join('\n');
           ta.dataset.fid = field.id;
           ta.dataset.k = 'options';
           ta.className = 'w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-indigo-500';
@@ -2540,6 +2606,7 @@ function closePassModal() {
         }
       });
 
+      updateRegTotal();
       document.getElementById('reg-pay-section').classList.toggle('hidden', !evt.isPaid);
       if (evt.isPaid) {
         setSelectValue(document.getElementById('reg-method'), reg ? (reg.paymentMethod || 'Efectivo') : 'Efectivo');
@@ -2561,6 +2628,17 @@ function closePassModal() {
       editingRegId = null;
     }
 
+    // Total a cobrar según lo que se elige en el formulario (eventos con precio por opción)
+    function updateRegTotal() {
+      const el = document.getElementById('reg-total');
+      if (!el) return;
+      const evt = state.events.find(e => e.id === state.currentEventId);
+      if (!evt || !evt.isPaid || !FormFields.hasPricing(evt.formFields)) { el.classList.add('hidden'); return; }
+      const t = FormFields.computeTotal(evt.formFields, evt.price, FormFields.readAnswers(evt.formFields, 'reg-'));
+      el.textContent = 'Total a cobrar: ' + fmtL(t.total) + (t.lines.length ? '  (' + t.lines.map(l => l.label).join(', ') + ')' : '');
+      el.classList.remove('hidden');
+    }
+
     async function saveRegistrant(e) {
       e.preventDefault();
       const evt = state.events.find(x => x.id === state.currentEventId);
@@ -2572,6 +2650,7 @@ function closePassModal() {
       const name = parsed.name, phone = parsed.phone, age = parsed.age, extraData = parsed.extraData;
       const method = evt.isPaid ? document.getElementById('reg-method').value : 'Gratuito';
       const status = evt.isPaid ? document.getElementById('reg-status').value : 'Exento';
+      const tot = (evt.isPaid && FormFields.hasPricing(evt.formFields)) ? FormFields.computeTotal(evt.formFields, evt.price, extraData) : null;
 
       // Misma persona (nombre + celular) en este evento
       if (phone && state.registrations.some(r => r.eventId === evt.id && r.id !== editingRegId && r.phone &&
@@ -2589,6 +2668,7 @@ function closePassModal() {
         if (!reg) { btn.disabled = false; return closeRegistrantModal(); }
         const patch = { name, phone: phone || null, age, extra_data: extraData };
         if (evt.isPaid) { patch.payment_method = method; patch.payment_status = status; }
+        if (tot) patch.amount = tot.total;
         if (supabaseClient) {
           const { data, error } = await supabaseClient.from('registrations').update(patch).eq('id', reg.id).select('id');
           if (error) {
@@ -2598,6 +2678,7 @@ function closePassModal() {
           if (!data || data.length === 0) { btn.disabled = false; return regError('No se pudo guardar. Cierra sesión y vuelve a entrar, e inténtalo de nuevo.'); }
         }
         Object.assign(reg, { name, phone: phone || null, age, extraData });
+        if (tot) reg.amount = tot.total;
         if (evt.isPaid) Object.assign(reg, { paymentMethod: method, paymentStatus: status });
         saveLocalData();
         closeRegistrantModal();
@@ -2622,6 +2703,7 @@ function closePassModal() {
         attended, attended_at: attended ? nowIso : null, created_at: nowIso,
         extra_data: extraData
       };
+      if (tot) row.amount = tot.total;   // la base de datos lo vuelve a calcular y es la que manda
       if (supabaseClient) {
         const { error } = await supabaseClient.from('registrations').insert([row]);
         if (error) {
@@ -2630,7 +2712,7 @@ function closePassModal() {
         }
       }
       const reg = { id: row.id, eventId: evt.id, code: row.code, name, dni: null, email: null, phone: row.phone, age,
-        isPaid: row.is_paid, paymentMethod: method, paymentStatus: status, receiptUrl: null, attended, createdAt: nowIso, extraData };
+        isPaid: row.is_paid, paymentMethod: method, paymentStatus: status, amount: tot ? tot.total : null, receiptUrl: null, attended, createdAt: nowIso, extraData };
       if (!state.registrations.some(r => r.id === reg.id)) state.registrations.unshift(reg);   // el tiempo real puede llegar primero
       saveLocalData();
       closeRegistrantModal();
@@ -2640,6 +2722,7 @@ function closePassModal() {
     }
 
     document.getElementById('registrant-form').addEventListener('submit', saveRegistrant);
+    document.getElementById('reg-dyn-fields').addEventListener('change', updateRegTotal);
 
     // ==========================================
     // RESUMEN DE RESPUESTAS (cuántas personas por cada respuesta)
@@ -2907,7 +2990,7 @@ function closePassModal() {
             return m;
           };
           const cache = {};
-          const header = ['Evento', 'Código', 'Nombre', 'Celular', 'Edad', 'Estado de pago', 'Método de pago', 'Llegó', 'Fecha de inscripción', 'Respuestas adicionales'];
+          const header = ['Evento', 'Código', 'Nombre', 'Celular', 'Edad', 'Estado de pago', 'Método de pago', 'Monto', 'Llegó', 'Fecha de inscripción', 'Respuestas adicionales'];
           let csv = '\uFEFF' + header.map(csvCell).join(',') + '\n';
           all.registrations.forEach(r => {
             const evId = g(r, 'event_id', 'eventId');
@@ -2916,7 +2999,7 @@ function closePassModal() {
             const extra = g(r, 'extra_data', 'extraData') || {};
             const extraTxt = Object.keys(extra).map(k => (labels[k] || k) + ': ' + extra[k]).join(' | ');
             csv += [ev ? ev.title : evId, r.code, r.name, r.phone || '', r.age == null ? '' : r.age,
-              g(r, 'payment_status', 'paymentStatus') || '', g(r, 'payment_method', 'paymentMethod') || '',
+              g(r, 'payment_status', 'paymentStatus') || '', g(r, 'payment_method', 'paymentMethod') || '', r.amount == null ? '' : r.amount,
               r.attended ? 'LLEGÓ' : 'PENDIENTE', g(r, 'created_at', 'createdAt') || '', extraTxt].map(csvCell).join(',') + '\n';
           });
           triggerDownload('inscritos-todos-' + stamp + '.csv', csv, 'text/csv;charset=utf-8;');
@@ -3228,6 +3311,9 @@ function closePassModal() {
         is_paid: !!evt.isPaid, payment_method: method, payment_status: status, receipt_url: null,
         attended: false, attended_at: null, created_at: it.created_at || nowIso, extra_data: it.extra
       }));
+      if (evt.isPaid && FormFields.hasPricing(evt.formFields)) {
+        rows.forEach(r => { r.amount = FormFields.computeTotal(evt.formFields, evt.price, r.extra_data).total; });
+      }
 
       const ok = [], dup = [], fail = [];
       try {
@@ -3252,7 +3338,7 @@ function closePassModal() {
       ok.forEach(r => {
         if (state.registrations.some(x => x.id === r.id)) return;
         state.registrations.unshift({ id: r.id, eventId: r.event_id, code: r.code, name: r.name, dni: null, email: null, phone: r.phone, age: r.age,
-          isPaid: r.is_paid, paymentMethod: r.payment_method, paymentStatus: r.payment_status, receiptUrl: null, attended: false,
+          isPaid: r.is_paid, paymentMethod: r.payment_method, paymentStatus: r.payment_status, amount: r.amount != null ? r.amount : null, receiptUrl: null, attended: false,
           createdAt: r.created_at, extraData: r.extra_data });
       });
       saveLocalData();
@@ -3462,6 +3548,15 @@ function closePassModal() {
     }
 
     // ---- Estado de pago junto al resultado del escaneo (solo eventos de pago) ----
+    // Montos (L.): el de cada inscripción; si no tiene (inscripciones anteriores), el precio base del evento
+    function fmtL(n) { return 'L. ' + Number(n).toLocaleString('es-HN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+    function regAmount(reg, evt) {
+      if (!reg || !reg.isPaid) return 0;
+      if (reg.amount != null && isFinite(reg.amount)) return Number(reg.amount);
+      return evt ? (Number(evt.price) || 0) : 0;
+    }
+    function regAmountOf(reg) { return regAmount(reg, state.events.find(e => e.id === reg.eventId)); }
+
     const PAY_OPTIONS = [
       ['Pagado', 'Pagado'],
       ['En Revisión', 'En Revisión'],
@@ -3495,6 +3590,7 @@ function closePassModal() {
         <div id="checkin-pay-panel" class="sm:w-60 shrink-0 rounded-xl bg-slate-950/70 border border-slate-700/70 p-3 space-y-2 text-slate-200">
           <p class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Estado de pago</p>
           <span class="inline-block text-xs font-bold px-2 py-0.5 rounded border ${payStatusClass(ps)}">${esc(ps)}</span>
+          ${regAmountOf(reg) > 0 ? `<p class="text-sm font-bold font-mono ${ps === 'Pagado' ? 'text-emerald-300' : 'text-amber-300'}">${ps === 'Pagado' ? 'Pagado: ' : 'Cobrar: '}${esc(fmtL(regAmountOf(reg)))}</p>` : ''}
           ${reg.paymentMethod ? `<p class="text-[10px] text-slate-400">Método: ${esc(reg.paymentMethod)}</p>` : ''}
           <select data-pay-reg="${esc(reg.id)}" aria-label="Cambiar estado de pago" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500">${opts}</select>
           ${ps !== 'Pagado' ? `<button type="button" data-pay-mark="${esc(reg.id)}" class="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg">Marcar como Pagado</button>` : ''}
@@ -3597,7 +3693,7 @@ function closePassModal() {
         box.className = 'rounded-xl p-5 border bg-amber-950/60 border-amber-500/50 text-amber-200';
         const hint = reg.paymentStatus === 'En Revisión'
           ? 'Su comprobante está en revisión. Verifícalo en el Dashboard y, si es correcto, márcalo como Pagado aquí a un lado.'
-          : 'Cobra el pago' + (reg.paymentMethod ? ' (' + esc(reg.paymentMethod) + ')' : '') + ' y márcalo como Pagado aquí a un lado para registrar su entrada.';
+          : 'Cobra ' + (regAmountOf(reg) > 0 ? fmtL(regAmountOf(reg)) : 'el pago') + (reg.paymentMethod ? ' (' + esc(reg.paymentMethod) + ')' : '') + ' y márcalo como Pagado aquí a un lado para registrar su entrada.';
         box.innerHTML = checkinLayout(`
           <div class="flex items-center gap-2 font-bold text-sm text-amber-300">
             <i data-lucide="alert-triangle" class="w-5 h-5"></i> Entrada no registrada: falta confirmar el pago
@@ -3780,14 +3876,14 @@ function closePassModal() {
         phoneCsv ? [(visCsv.find(f => f.key === 'phone') || {}).label || 'Celular'] : [],
         ageCsv ? [(visCsv.find(f => f.key === 'age') || {}).label || 'Edad'] : [],
         extraCsv.map(f => f.label),
-        paidCsv ? ['MetodoPago', 'ComprobanteDrive'] : [], ['FechaRegistro'], legacyCsv ? ['DNI', 'Email'] : []);
+        paidCsv ? ['MetodoPago', 'Monto', 'ComprobanteDrive'] : [], ['FechaRegistro'], legacyCsv ? ['DNI', 'Email'] : []);
       let csv = '\uFEFF' + cols.join(',') + '\n';
       regs.forEach(r => {
         const row = [r.code, r.attended ? 'LLEGO' : 'PENDIENTE'].concat(paidCsv ? [r.paymentStatus] : [], [r.name],
           phoneCsv ? [r.phone || ''] : [],
           ageCsv ? [r.age ?? ''] : [],
           extraCsv.map(f => (r.extraData && r.extraData[f.id]) || ''),
-          paidCsv ? [r.paymentMethod, r.receiptUrl || ''] : [], [r.createdAt || ''], legacyCsv ? [r.dni || '', r.email || ''] : []);
+          paidCsv ? [r.paymentMethod, regAmount(r, evtCsv) || '', r.receiptUrl || ''] : [], [r.createdAt || ''], legacyCsv ? [r.dni || '', r.email || ''] : []);
         csv += row.map(csvCell).join(',') + '\n';
       });
 

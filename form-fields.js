@@ -36,6 +36,18 @@
     return out;
   }
 
+  // Precios extra por opción: { "Sí": 150 } o { "Talla M": 200 } (solo números mayores que 0)
+  function sanitizePrices(obj) {
+    const out = {};
+    if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+      Object.keys(obj).slice(0, MAX_OPTS + 2).forEach(k => {
+        const n = Math.round(Number(obj[k]) * 100) / 100;
+        if (isFinite(n) && n > 0 && n <= 1000000) out[String(k).slice(0, 80)] = n;
+      });
+    }
+    return Object.keys(out).length ? out : undefined;
+  }
+
   function normalizeFormFields(raw) {
     const defaults = defaultFormFields();
     const list = Array.isArray(raw) ? raw : [];
@@ -71,6 +83,7 @@
         required: !!f.required,
         enabled: true,
         options: type === 'select' ? sanitizeOptions(f.options) : undefined,
+        prices: (type === 'select' || type === 'yesno') ? sanitizePrices(f.prices) : undefined,
         showIf: (f.showIf && typeof f.showIf === 'object')
           ? { field: String(f.showIf.field || '').replace(/[^\w-]/g, '').slice(0, 24), value: String(f.showIf.value == null ? '' : f.showIf.value).slice(0, 80) }
           : undefined
@@ -88,7 +101,16 @@
       } else {
         delete f.showIf;
       }
-      if (f.type === 'select' || f.type === 'yesno') earlier[f.id] = f;
+      if (f.type === 'select' || f.type === 'yesno') {
+        earlier[f.id] = f;
+        if (f.prices) {
+          const valid = f.type === 'yesno' ? YESNO : (f.options || []);
+          Object.keys(f.prices).forEach(k => { if (valid.indexOf(k) === -1) delete f.prices[k]; });
+          if (!Object.keys(f.prices).length) delete f.prices;
+        }
+      } else {
+        delete f.prices;
+      }
     });
     ['name', 'phone', 'age'].forEach((k, i, order) => {
       if (seenSys[k]) return;
@@ -116,6 +138,39 @@
     if (field.key === 'phone') return prefix + 'phone';
     if (field.key === 'age') return prefix + 'age';
     return prefix + 'x-' + field.id;
+  }
+
+  function hasPricing(fields) {
+    return normalizeFormFields(fields).some(f => f.prices && Object.keys(f.prices).length > 0);
+  }
+
+  // Total = precio base + lo que suman las opciones elegidas (solo campos que se muestran)
+  function computeTotal(fields, basePrice, answers) {
+    const base = Number(basePrice) || 0;
+    const lines = [];
+    let total = base;
+    const shown = {};
+    normalizeFormFields(fields).forEach(f => {
+      if (f.key !== 'extra') return;
+      if (f.showIf && shown[f.showIf.field] !== f.showIf.value) return;
+      const v = answers ? answers[f.id] : undefined;
+      if (v === undefined || v === null || v === '') return;
+      shown[f.id] = v;
+      if (f.prices && f.prices[v]) { lines.push({ label: f.label + ': ' + v, amount: f.prices[v] }); total += f.prices[v]; }
+    });
+    return { base: base, total: Math.round(total * 100) / 100, lines: lines };
+  }
+
+  // Respuestas actuales del formulario (solo de los campos que se están mostrando)
+  function readAnswers(fields, prefix) {
+    const answers = {};
+    visibleFields(fields).forEach(f => {
+      if (f.key !== 'extra') return;
+      if (f.showIf && answers[f.showIf.field] !== f.showIf.value) return;
+      const v = currentValue(prefix, f);
+      if (v !== '') answers[f.id] = v;
+    });
+    return answers;
   }
 
   function currentValue(prefix, field) {
@@ -290,8 +345,12 @@
     renderFormFields,
     readFormFields,
     applyConditions,
+    hasPricing,
+    computeTotal,
+    readAnswers,
     fieldInputId,
     MAX_EXTRA,
-    DEFAULT_LABELS
+    DEFAULT_LABELS,
+    VERSION: 4
   };
 })(window);

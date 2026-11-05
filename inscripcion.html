@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <script defer src="config.js"></script>   <!-- defer: ya no frena la carga de la página; se ejecuta justo antes de inscripcion.js -->
-<script defer src="form-fields.js"></script>
+<script defer src="form-fields.js?v=4"></script>
 <link rel="stylesheet" href="estilos.css">
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4"></script>
@@ -124,6 +124,14 @@
         </div>
       </div>
 
+      <div id="total-box" class="hidden rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3.5 space-y-2 text-xs">
+        <div id="total-lines" class="space-y-1 text-slate-300"></div>
+        <div class="flex items-center justify-between pt-2 border-t border-emerald-500/20">
+          <span class="font-semibold text-emerald-300">Total a pagar</span>
+          <span id="total-amount" class="font-extrabold text-emerald-300 text-base font-mono"></span>
+        </div>
+      </div>
+
       <p id="form-error" class="hidden text-xs p-3 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-300"></p>
       <div id="progress" class="hidden text-xs p-3.5 rounded-xl bg-indigo-950/40 border border-indigo-500/30 text-indigo-300 flex items-center gap-2.5">
         <div class="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin"></div>
@@ -179,6 +187,7 @@
       <p id="p-name" class="text-sm font-bold text-slate-100"></p>
       <p id="p-phone" class="text-xs text-slate-400 font-mono"></p>
       <p id="p-status" class="inline-block text-xs font-semibold px-3 py-1 rounded-full"></p>
+      <p id="p-amount" class="hidden text-sm font-bold text-amber-300 font-mono"></p>
       <p class="text-[10px] text-slate-500">Ministerio Internacional Ágape • www.agapehn.org</p>
     </div>
     <div class="no-print grid grid-cols-2 gap-2">

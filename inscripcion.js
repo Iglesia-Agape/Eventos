@@ -145,7 +145,10 @@ function renderEvent(spots) {
   $('ev-date').textContent = evt.date ? fmtDate(evt.date) : 'Fecha por confirmar';
   const p = $('ev-price');
   if (evt.isPaid) {
-    p.textContent = 'Inscripción: L. ' + evt.price.toFixed(2);
+    const pricedEvt = !!(window.FormFields && FormFields.hasPricing(evt.formFields));
+    p.textContent = pricedEvt
+      ? (evt.price > 0 ? 'Inscripción: L. ' + evt.price.toFixed(2) + ' + extras opcionales' : 'Inscripción gratuita · extras con costo')
+      : 'Inscripción: L. ' + evt.price.toFixed(2);
     p.className = 'px-3 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold';
   } else {
     p.textContent = '✓ Evento 100% gratuito';
@@ -155,16 +158,46 @@ function renderEvent(spots) {
   const cd = closeCountdownText();
   $('ev-countdown').textContent = cd;
   $('ev-countdown').classList.toggle('hidden', !cd);
-  $('pay-channels').classList.toggle('hidden', !evt.isPaid);
-  $('pay-section').classList.toggle('hidden', !evt.isPaid);
-  $('btn-submit').textContent = evt.isPaid ? 'Completar inscripción y obtener pase QR' : 'Confirmar asistencia y obtener pase QR';
   if (window.FormFields) FormFields.renderFormFields($('dyn-fields'), evt.formFields, { prefix: 'f-' });
-  toggleProof();
+  updateTotals();
 }
 
-const needsProof = () => evt && evt.isPaid && ['BAC Credomatic', 'PayPal'].includes($('f-method').value);
+// Eventos con precio por opción (almuerzo, camisa...): el total cambia según lo que se elija
+const priced = () => !!(evt && window.FormFields && FormFields.hasPricing(evt.formFields));
+const totalNow = () => FormFields.computeTotal(evt.formFields, evt.price, FormFields.readAnswers(evt.formFields, 'f-'));
+// ¿Hay que pagar ahora? En eventos con precios por opción, solo si el total es mayor que 0
+const payNow = () => !!evt && evt.isPaid && (!priced() || totalNow().total > 0);
+const needsProof = () => payNow() && ['BAC Credomatic', 'PayPal'].includes($('f-method').value);
+const fmtL = (n) => 'L. ' + Number(n).toLocaleString('es-HN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function updateTotals() {
+  const box = $('total-box');
+  const showBox = !!evt && evt.isPaid && priced();
+  box.classList.toggle('hidden', !showBox);
+  if (showBox) {
+    const t = totalNow();
+    const lines = $('total-lines');
+    lines.innerHTML = '';
+    const add = (label, amount) => {
+      const d = document.createElement('div');
+      d.className = 'flex items-center justify-between gap-3';
+      const a = document.createElement('span'); a.textContent = label;
+      const b = document.createElement('span'); b.className = 'font-mono whitespace-nowrap'; b.textContent = amount;
+      d.appendChild(a); d.appendChild(b); lines.appendChild(d);
+    };
+    if (t.base > 0) add('Inscripción', fmtL(t.base));
+    t.lines.forEach(l => add(l.label, '+ ' + fmtL(l.amount)));
+    if (!t.lines.length && t.base === 0) add('Elige las opciones que quieras: las que tienen costo se suman aquí.', '');
+    $('total-amount').textContent = fmtL(t.total);
+  }
+  const pay = payNow();
+  $('pay-channels').classList.toggle('hidden', !pay);
+  $('pay-section').classList.toggle('hidden', !pay);
+  $('btn-submit').textContent = pay ? 'Completar inscripción y obtener pase QR' : 'Confirmar asistencia y obtener pase QR';
+  toggleProof();
+}
 function toggleProof() { $('proof-box').classList.toggle('hidden', !needsProof()); }
 $('f-method').addEventListener('change', toggleProof);
+$('dyn-fields').addEventListener('change', updateTotals);
 $('f-proof').addEventListener('change', (e) => { const f = e.target.files[0]; $('proof-name').textContent = f ? '✓ ' + f.name + ' (' + Math.round(f.size / 1024) + ' KB)' : 'Máximo 10 MB. Se guarda de forma segura.'; });
 $('btn-copy').addEventListener('click', () => { navigator.clipboard.writeText($('bac-acc').textContent).then(() => { $('btn-copy').textContent = '¡Copiado!'; setTimeout(() => $('btn-copy').textContent = 'Copiar', 2000); }); });
 $('btn-mypass').addEventListener('click', () => myPass && showPass(myPass));
@@ -217,7 +250,9 @@ $('reg-form').addEventListener('submit', async (e) => {
   const parsed = FormFields.readFormFields(evt.formFields, 'f-', false);
   if (parsed.error) return formError(parsed.error);
   const name = parsed.name, phone = parsed.phone, age = parsed.age, extraData = parsed.extraData;
-  const method = evt.isPaid ? $('f-method').value : 'Gratuito';
+  const pay = payNow();
+  const tot = priced() ? totalNow() : null;
+  const method = pay ? $('f-method').value : 'Gratuito';
   const file = $('f-proof').files[0];
   if (needsProof()) {
     if (!file) return formError('Adjunta el comprobante o captura de tu pago.');
@@ -237,7 +272,7 @@ $('reg-form').addEventListener('submit', async (e) => {
 
     const code = newCode();
     let paymentStatus = 'Exento';
-    if (evt.isPaid) paymentStatus = needsProof() ? 'En Revisión' : (method === 'POS' ? 'Pendiente Pago (POS)' : method === 'Efectivo' ? 'Pendiente Pago (Efectivo)' : 'Pendiente Pago');
+    if (pay) paymentStatus = needsProof() ? 'En Revisión' : (method === 'POS' ? 'Pendiente Pago (POS)' : method === 'Efectivo' ? 'Pendiente Pago (Efectivo)' : 'Pendiente Pago');
 
     let receiptUrl = '';
     if (needsProof()) {
@@ -264,6 +299,7 @@ $('reg-form').addEventListener('submit', async (e) => {
       receipt_url: reg.receiptUrl, attended: reg.attended, created_at: reg.createdAt,
       extra_data: extraData
     };
+    if (tot) row.amount = tot.total;   // la base de datos lo vuelve a calcular y es la que manda
     let { error } = await sb.from('registrations').insert([row]);
     if (error && String(error.message || '').includes('extra_data')) {
       delete row.extra_data;
@@ -276,7 +312,7 @@ $('reg-form').addEventListener('submit', async (e) => {
       return formError('No pudimos completar tu inscripción. Inténtalo de nuevo en un momento.');
     }
 
-    myPass = { code, name, phone, age, isPaid: reg.isPaid, paymentMethod: method, paymentStatus };
+    myPass = { code, name, phone, age, isPaid: reg.isPaid, paymentMethod: method, paymentStatus, amount: tot ? tot.total : (evt.isPaid ? evt.price : 0) };
     myPasses.push(myPass); savePasses();
     try { confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } }); } catch (e) {}
     showPass(myPass);
@@ -317,7 +353,7 @@ $('lookup-form').addEventListener('submit', async (ev) => {
     if (!data || !data.code) {
       return lookupError('No encontramos una inscripción con ese nombre y celular. Revisa que estén escritos igual que al inscribirte, o comunícate con la iglesia.');
     }
-    const p = { code: data.code, name: data.name, phone: data.phone, age: data.age, isPaid: !!data.is_paid, paymentMethod: data.payment_method, paymentStatus: data.payment_status };
+    const p = { code: data.code, name: data.name, phone: data.phone, age: data.age, isPaid: !!data.is_paid, paymentMethod: data.payment_method, paymentStatus: data.payment_status, amount: data.amount != null ? Number(data.amount) : null };
     const i = myPasses.findIndex(x => x.code === p.code);
     if (i >= 0) myPasses[i] = p; else myPasses.push(p);
     savePasses();
@@ -345,9 +381,14 @@ function showPass(p) {
   if (p.age) bits.push(ageLab + ': ' + p.age);
   $('p-phone').textContent = bits.join(' • ');
   const st = $('p-status');
-  const map = !p.isPaid ? ['✓ Acceso gratuito confirmado', 'indigo'] : p.paymentStatus === 'Pagado' ? ['✓ Pago aprobado', 'emerald'] : p.paymentStatus === 'En Revisión' ? ['⏳ Comprobante en revisión', 'amber'] : ['📍 Pagar en cafetería (' + p.paymentMethod + ')', 'sky'];
+  const free = !p.isPaid || p.paymentStatus === 'Exento';
+  const map = free ? ['✓ Acceso gratuito confirmado', 'indigo'] : p.paymentStatus === 'Pagado' ? ['✓ Pago aprobado', 'emerald'] : p.paymentStatus === 'En Revisión' ? ['⏳ Comprobante en revisión', 'amber'] : ['📍 Pagar en cafetería (' + p.paymentMethod + ')', 'sky'];
   st.textContent = map[0];
   st.className = 'inline-block text-xs font-semibold px-3 py-1 rounded-full border ' + { indigo: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20', emerald: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', amber: 'bg-amber-500/10 text-amber-400 border-amber-500/20', sky: 'bg-sky-500/10 text-sky-400 border-sky-500/20' }[map[1]];
+  const amt = p.amount != null ? Number(p.amount) : (evt ? evt.price : 0);
+  const pa = $('p-amount');
+  pa.textContent = 'Total: ' + fmtL(amt);
+  pa.classList.toggle('hidden', free || !(amt > 0));
   $('qr').innerHTML = '';
   new QRCode($('qr'), { text: 'EVT-' + p.code, width: 160, height: 160, colorDark: '#020617', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.H });
   renderPassList();
@@ -382,7 +423,7 @@ $('btn-another').addEventListener('click', () => {
   show('st-form');
 });
 $('btn-wa').addEventListener('click', () => {
-  const t = `¡Hola! Aquí está mi pase para *${evt.title}* en Ministerio Internacional Ágape.\n\n👤 *Nombre:* ${myPass.name}\n🔑 *Código de Entrada:* EVT-${myPass.code}\n📱 *Celular:* ${myPass.phone || myPass.dni || '-'}${myPass.isPaid ? `\n💳 *Estado:* ${myPass.paymentStatus}` : ''}\n\nPresenta este código al ingresar.`;
+  const t = `¡Hola! Aquí está mi pase para *${evt.title}* en Ministerio Internacional Ágape.\n\n👤 *Nombre:* ${myPass.name}\n🔑 *Código de Entrada:* EVT-${myPass.code}\n📱 *Celular:* ${myPass.phone || myPass.dni || '-'}${(myPass.isPaid && myPass.paymentStatus !== 'Exento') ? `\n💳 *Estado:* ${myPass.paymentStatus}${Number(myPass.amount) > 0 ? ' (' + fmtL(myPass.amount) + ')' : ''}` : ''}\n\nPresenta este código al ingresar.`;
   window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(t), '_blank');
 });
 
@@ -400,7 +441,9 @@ $('btn-save').addEventListener('click', () => {
   x.fillStyle = '#34d399'; x.font = 'bold 32px monospace'; x.fillText('EVT-' + myPass.code, mid, 480);
   x.fillStyle = '#f8fafc'; x.font = 'bold 22px sans-serif'; x.fillText(myPass.name, mid, 530);
   x.fillStyle = '#94a3b8'; x.font = '16px monospace'; x.fillText('Cel: ' + (myPass.phone || myPass.dni || '-'), mid, 565);
-  x.fillStyle = myPass.isPaid ? '#f59e0b' : '#38bdf8'; x.font = 'bold 16px sans-serif'; x.fillText(myPass.isPaid ? 'Estado: ' + myPass.paymentStatus : 'Acceso gratuito', mid, 615);
+  const freePass = !myPass.isPaid || myPass.paymentStatus === 'Exento';
+  x.fillStyle = freePass ? '#38bdf8' : '#f59e0b'; x.font = 'bold 16px sans-serif'; x.fillText(freePass ? 'Acceso gratuito' : 'Estado: ' + myPass.paymentStatus, mid, 615);
+  if (!freePass && Number(myPass.amount) > 0) { x.fillStyle = '#fbbf24'; x.font = 'bold 20px monospace'; x.fillText('Total: ' + fmtL(myPass.amount), mid, 650); }
   x.fillStyle = '#64748b'; x.font = '14px sans-serif'; x.fillText('Presenta este código en la entrada • www.agapehn.org', mid, 740);
   const a = document.createElement('a');
   a.download = 'Pase_' + myPass.name.replace(/\s+/g, '_') + '_EVT-' + myPass.code + '.png';
