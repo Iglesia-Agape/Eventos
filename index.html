@@ -275,6 +275,10 @@
                   <i data-lucide="download" class="w-3.5 h-3.5"></i>
                   CSV
                 </button>
+                <button onclick="openSummaryModal()" id="btn-summary" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-lg border border-slate-700 flex items-center gap-1.5 transition" title="Cuántas personas por cada respuesta del formulario">
+                  <i data-lucide="bar-chart-3" class="w-3.5 h-3.5"></i>
+                  Resumen
+                </button>
                 <button onclick="openAuditModal()" id="btn-audit" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-lg border border-slate-700 flex items-center gap-1.5 transition" title="Quién cambió pagos, llegadas y datos">
                   <i data-lucide="history" class="w-3.5 h-3.5"></i>
                   Historial
@@ -706,6 +710,26 @@
         <div class="flex justify-end">
           <button type="button" onclick="closeImportModal()" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg">Listo</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL: RESUMEN DE RESPUESTAS                -->
+  <!-- ========================================== -->
+  <div id="modal-summary" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-2xl w-full p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+      <button type="button" onclick="closeSummaryModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-xl hover:bg-slate-800 transition" title="Cerrar">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+      <div class="pr-8 mb-4">
+        <h3 class="text-base font-bold text-white">Resumen de respuestas</h3>
+        <p id="summary-subtitle" class="text-xs text-slate-400 mt-0.5"></p>
+      </div>
+      <div id="summary-body" class="space-y-5"></div>
+      <div class="flex justify-end gap-2 pt-4 mt-4 border-t border-slate-800">
+        <button type="button" onclick="copySummary()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-lg border border-slate-700">Copiar como texto</button>
+        <button type="button" onclick="closeSummaryModal()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg">Cerrar</button>
       </div>
     </div>
   </div>
@@ -1563,6 +1587,7 @@
       if (!reg.attended && !isPaymentSettled(reg)) {
         return showToast(reg.name + ' aún no ha pagado. Cambia su estado de pago a Pagado (o Exento) para marcar que llegó.', 'warning');
       }
+      if (reg.attended && !confirm('¿Quitar la llegada de ' + reg.name + '?\n\nVolverá a aparecer como PENDIENTE.')) return;
       const prev = { attended: reg.attended, paymentStatus: reg.paymentStatus };
       reg.attended = !reg.attended;
       saveLocalData();
@@ -2560,6 +2585,115 @@ function closePassModal() {
     document.getElementById('registrant-form').addEventListener('submit', saveRegistrant);
 
     // ==========================================
+    // RESUMEN DE RESPUESTAS (cuántas personas por cada respuesta)
+    // ==========================================
+    let summaryText = '';
+
+    function summarySections(evt) {
+      const regs = state.registrations.filter(r => r.eventId === evt.id);
+      const fields = FormFields.visibleFields(evt.formFields);
+      const sections = [];
+      const tally = (labelOf) => {
+        const map = new Map();
+        regs.forEach(r => {
+          const lab = labelOf(r);
+          const e = map.get(lab) || { label: lab, total: 0, arrived: 0 };
+          e.total++; if (r.attended) e.arrived++;
+          map.set(lab, e);
+        });
+        return map;
+      };
+      fields.forEach(f => {
+        if (f.key === 'name' || f.key === 'phone') return;
+        if (f.key === 'age') {
+          const ranges = [['Menos de 13', 0, 12], ['13 a 17', 13, 17], ['18 a 25', 18, 25], ['26 a 35', 26, 35], ['36 a 50', 36, 50], ['51 o más', 51, 200]];
+          const rows = ranges.map(([label, lo, hi]) => {
+            const inR = regs.filter(r => r.age != null && r.age >= lo && r.age <= hi);
+            return { label, total: inR.length, arrived: inR.filter(r => r.attended).length };
+          });
+          const none = regs.filter(r => r.age == null);
+          if (none.length) rows.push({ label: 'Sin dato', total: none.length, arrived: none.filter(r => r.attended).length });
+          sections.push({ title: f.label, rows: rows.filter(r => r.total > 0) });
+          return;
+        }
+        const ans = (r) => { const v = (r.extraData || {})[f.id]; return v == null ? '' : String(v).trim(); };
+        if (f.type === 'select' || f.type === 'yesno') {
+          const opts = f.type === 'yesno' ? ['Sí', 'No'] : (f.options || []);
+          const map = tally(r => ans(r) || 'Sin respuesta');
+          const rows = opts.map(o => map.get(o) || { label: o, total: 0, arrived: 0 });
+          if (map.has('Sin respuesta')) rows.push(map.get('Sin respuesta'));
+          map.forEach((v, k) => { if (!opts.includes(k) && k !== 'Sin respuesta') rows.push(v); });   // valores que ya no están en la lista
+          sections.push({ title: f.label, rows });
+        } else if (f.type === 'number') {
+          const vals = regs.map(ans).filter(v => v !== '').map(Number).filter(isFinite);
+          const sum = vals.reduce((a, b) => a + b, 0);
+          sections.push({ title: f.label, note: vals.length
+            ? vals.length + ' respuestas · suma ' + sum + ' · promedio ' + (sum / vals.length).toFixed(1) + ' · mínimo ' + Math.min(...vals) + ' · máximo ' + Math.max(...vals)
+            : 'Sin respuestas todavía.', rows: [] });
+        } else if (f.type === 'textarea') {
+          const n = regs.filter(r => ans(r) !== '').length;
+          sections.push({ title: f.label, note: n + (n === 1 ? ' persona respondió' : ' personas respondieron') + ' (texto libre; se ve en la tabla y en el CSV).', rows: [] });
+        } else {
+          // Texto libre (Iglesia, Ciudad...): se agrupa sin importar mayúsculas, tildes ni espacios
+          const groups = new Map();
+          regs.forEach(r => {
+            const raw = ans(r);
+            const key = raw ? impNorm(raw) : '';
+            const g = groups.get(key) || { total: 0, arrived: 0, spellings: new Map() };
+            g.total++; if (r.attended) g.arrived++;
+            if (raw) g.spellings.set(raw, (g.spellings.get(raw) || 0) + 1);
+            groups.set(key, g);
+          });
+          const rows = [];
+          groups.forEach((g, key) => {
+            const label = key === '' ? 'Sin respuesta' : [...g.spellings.entries()].sort((a, b) => b[1] - a[1])[0][0];
+            rows.push({ label, total: g.total, arrived: g.arrived });
+          });
+          rows.sort((a, b) => (a.label === 'Sin respuesta') - (b.label === 'Sin respuesta') || b.total - a.total);
+          sections.push({ title: f.label, rows });
+        }
+      });
+      return { regs, sections };
+    }
+
+    function openSummaryModal() {
+      const evt = state.events.find(e => e.id === state.currentEventId);
+      if (!evt) return showToast('Primero selecciona un evento.', 'warning');
+      const { regs, sections } = summarySections(evt);
+      const arrived = regs.filter(r => r.attended).length;
+      document.getElementById('summary-subtitle').innerText = 'Evento: ' + evt.title;
+      let text = evt.title + '\nInscritos: ' + regs.length + ' · Han llegado: ' + arrived + '\n';
+      let html = '<div class="grid grid-cols-2 gap-2 text-center">' +
+        '<div class="rounded-xl bg-slate-950 border border-slate-800 p-3"><p class="text-xl font-extrabold text-white">' + regs.length + '</p><p class="text-[10px] text-slate-400">Inscritos</p></div>' +
+        '<div class="rounded-xl bg-slate-950 border border-slate-800 p-3"><p class="text-xl font-extrabold text-emerald-300">' + arrived + '</p><p class="text-[10px] text-slate-400">Han llegado</p></div></div>';
+      sections.forEach(sec => {
+        text += '\n' + sec.title + ':\n';
+        html += '<div class="space-y-2"><h4 class="text-xs font-bold uppercase tracking-wider text-indigo-400">' + esc(sec.title) + '</h4>';
+        if (sec.note) { html += '<p class="text-xs text-slate-300">' + esc(sec.note) + '</p>'; text += '- ' + sec.note + '\n'; }
+        const max = Math.max(1, ...sec.rows.map(r => r.total));
+        html += '<div class="space-y-1.5 ' + (sec.rows.length > 12 ? 'max-h-72 overflow-y-auto pr-1' : '') + '">';
+        sec.rows.forEach(r => {
+          html += '<div class="text-xs"><div class="flex items-center justify-between gap-2"><span class="text-slate-200 truncate">' + esc(r.label) + '</span>' +
+            '<span class="text-slate-400 font-mono whitespace-nowrap"><strong class="text-white">' + r.total + '</strong> inscritos · ' + r.arrived + ' llegaron</span></div>' +
+            '<div class="h-1.5 rounded-full bg-slate-800 mt-1"><div class="h-1.5 rounded-full bg-indigo-500" data-w="' + Math.round(r.total / max * 100) + '"></div></div></div>';
+          text += '- ' + r.label + ': ' + r.total + ' (llegaron ' + r.arrived + ')\n';
+        });
+        html += '</div></div>';
+      });
+      summaryText = text;
+      const body = document.getElementById('summary-body');
+      body.innerHTML = html;
+      body.querySelectorAll('[data-w]').forEach(el => { el.style.width = el.dataset.w + '%'; });
+      document.getElementById('modal-summary').classList.remove('hidden');
+      lucide.createIcons();
+    }
+    function closeSummaryModal() { document.getElementById('modal-summary').classList.add('hidden'); }
+    async function copySummary() {
+      try { await navigator.clipboard.writeText(summaryText); showToast('Resumen copiado. Pégalo en WhatsApp o donde necesites.', 'success'); }
+      catch (e) { showToast('No se pudo copiar. Selecciona el texto manualmente.', 'warning'); }
+    }
+
+    // ==========================================
     // HISTORIAL DE CAMBIOS (solo administrador)
     // ==========================================
     let auditRows = [];
@@ -3307,8 +3441,19 @@ function closePassModal() {
         </div>`;
     }
 
+    // Respuestas del formulario (Iglesia, almuerzo, talla...) para verlas al escanear
+    function answersChipsHtml(reg) {
+      const evt = state.events.find(e => e.id === reg.eventId);
+      if (!evt) return '';
+      const extra = reg.extraData || {};
+      const chips = FormFields.extraFields(evt.formFields)
+        .filter(f => extra[f.id] != null && extra[f.id] !== '')
+        .map(f => `<span class="px-2 py-0.5 rounded-md bg-slate-950/60 border border-slate-700/70 text-[11px] text-slate-200"><span class="text-slate-400">${esc(f.label)}:</span> ${esc(extra[f.id])}</span>`);
+      return chips.length ? `<div class="flex flex-wrap gap-1.5 pt-1">${chips.join('')}</div>` : '';
+    }
+
     function checkinLayout(leftHtml, reg) {
-      return `<div class="flex flex-col sm:flex-row gap-4 sm:items-start"><div class="flex-1 min-w-0 space-y-2">${leftHtml}</div>${checkinPayPanelHtml(reg)}</div>`;
+      return `<div class="flex flex-col sm:flex-row gap-4 sm:items-start"><div class="flex-1 min-w-0 space-y-2">${leftHtml}${answersChipsHtml(reg)}</div>${checkinPayPanelHtml(reg)}</div>`;
     }
 
     async function checkinSetPayment(regId, newStatus) {
@@ -3443,9 +3588,31 @@ function closePassModal() {
             <span class="text-slate-400">Evento: ${esc(evt ? evt.title : 'General')}</span>
           </div>
           ${paymentWarning}
+          <button type="button" data-undo-checkin="${esc(reg.id)}" class="mt-1 px-3 py-1.5 text-[11px] font-medium rounded-lg bg-slate-900/70 hover:bg-slate-800 text-slate-300 border border-slate-700">Deshacer llegada (fue un error)</button>
         `, reg);
       }
       lucide.createIcons();
+    }
+
+    // Deshace la llegada recién marcada (por ejemplo, se escaneó el pase equivocado)
+    async function undoCheckin(regId) {
+      const reg = state.registrations.find(r => r.id === regId);
+      if (!reg || !reg.attended) return;
+      const prev = { attended: true, paymentStatus: reg.paymentStatus };
+      reg.attended = false;
+      saveLocalData();
+      renderCurrentEventDetails();
+      const ok = await syncUpdateToSupabase(reg, prev);
+      if (!ok) return;
+      const i = state.recentCheckins.findIndex(x => x.code === reg.code);
+      if (i >= 0) state.recentCheckins.splice(i, 1);
+      renderRecentCheckins();
+      const box = document.getElementById('checkin-result');
+      if (box) {
+        box.className = 'rounded-xl p-5 border bg-slate-900 border-slate-700 text-slate-300';
+        box.innerHTML = '<p class="text-sm font-semibold text-white">Llegada deshecha</p><p class="text-xs text-slate-400 mt-1">' + esc(reg.name) + ' vuelve a estar como PENDIENTE. Puedes escanear su pase otra vez cuando llegue.</p>';
+      }
+      showToast('Llegada de ' + reg.name + ' deshecha.', 'info');
     }
 
     (function bindCheckinPayPanel() {
@@ -3454,6 +3621,8 @@ function closePassModal() {
       box.addEventListener('click', (ev) => {
         const b = ev.target.closest('[data-pay-mark]');
         if (b) checkinSetPayment(b.dataset.payMark, 'Pagado');
+        const u = ev.target.closest('[data-undo-checkin]');
+        if (u) undoCheckin(u.dataset.undoCheckin);
       });
       box.addEventListener('change', (ev) => {
         const sel = ev.target.closest('select[data-pay-reg]');
@@ -3463,7 +3632,10 @@ function closePassModal() {
 
     function renderRecentCheckins() {
       const container = document.getElementById('recent-checkins-list');
-      if (state.recentCheckins.length === 0) return;
+      if (state.recentCheckins.length === 0) {
+        container.innerHTML = '<p class="text-slate-500 italic">No se han registrado llegadas en esta sesión.</p>';
+        return;
+      }
       container.innerHTML = state.recentCheckins.slice(0, 5).map(item => `
         <div class="flex items-center justify-between p-2 rounded-lg bg-slate-950 border border-slate-800">
           <div class="flex items-center gap-2">
