@@ -61,6 +61,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (myPass) { $('btn-another').classList.add('hidden'); return showPass(myPass); }
     return closed ? showClosed() : showMsg('😔', 'Cupos agotados', 'Este evento alcanzó su capacidad máxima. Gracias por tu interés.', true);
   }
+  await loadOccupancy();
   renderEvent(spots);
   $('btn-mypass').textContent = myPasses.length > 1 ? 'Ya inscribiste a ' + myPasses.length + ' personas: ver mis pases' : 'Ya te inscribiste: ver mi pase';
   $('btn-mypass').classList.toggle('hidden', !myPass);
@@ -158,11 +159,32 @@ function renderEvent(spots) {
   const cd = closeCountdownText();
   $('ev-countdown').textContent = cd;
   $('ev-countdown').classList.toggle('hidden', !cd);
-  if (window.FormFields) FormFields.renderFormFields($('dyn-fields'), evt.formFields, { prefix: 'f-' });
+  if (window.FormFields) FormFields.renderFormFields($('dyn-fields'), evt.formFields, { prefix: 'f-', occupancy });
   updateTotals();
 }
 
 // Eventos con precio por opción (almuerzo, camisa...): el total cambia según lo que se elija
+// Cupo por opción (talleres, almuerzos limitados): cuántas personas ya eligieron cada opción
+let occupancy = {};
+async function loadOccupancy() {
+  if (!(evt && window.FormFields && FormFields.hasLimits(evt.formFields))) { occupancy = {}; return; }
+  try {
+    const { data, error } = await sb.rpc('ocupacion_opciones', { p_event_id: evt.id });
+    if (!error && data && typeof data === 'object') occupancy = data;
+  } catch (e) { /* si falla, la base de datos igual impide pasarse del cupo */ }
+}
+function fullChoices(extraData) {
+  const out = [];
+  FormFields.normalizeFormFields(evt.formFields).forEach(f => {
+    if (f.key !== 'extra' || !f.limits) return;
+    const a = extraData[f.id];
+    if (!a || !f.limits[a]) return;
+    const used = (occupancy[f.id] && occupancy[f.id][a]) || 0;
+    if (used >= f.limits[a]) out.push(a);
+  });
+  return out;
+}
+const cupoMsg = (opt) => 'El cupo de «' + opt + '» se llenó. Elige otra opción para continuar.';
 const priced = () => !!(evt && window.FormFields && FormFields.hasPricing(evt.formFields));
 const totalNow = () => FormFields.computeTotal(evt.formFields, evt.price, FormFields.readAnswers(evt.formFields, 'f-'));
 // ¿Hay que pagar ahora? En eventos con precios por opción, solo si el total es mayor que 0
@@ -270,6 +292,17 @@ $('reg-form').addEventListener('submit', async (e) => {
     const spots = await remainingSpots();
     if (spots !== null && spots <= 0) return showMsg('😔', 'Cupos agotados', 'Este evento alcanzó su capacidad máxima.', true);
 
+    // Cupo por opción: se vuelve a revisar justo antes de inscribir (y antes de subir el comprobante)
+    if (FormFields.hasLimits(evt.formFields)) {
+      await loadOccupancy();
+      const full = fullChoices(extraData);
+      if (full.length) {
+        FormFields.refreshOccupancy($('dyn-fields'), evt.formFields, 'f-', occupancy, false, true);
+        updateTotals();
+        return formError(cupoMsg(full[0]));
+      }
+    }
+
     const code = newCode();
     let paymentStatus = 'Exento';
     if (pay) paymentStatus = needsProof() ? 'En Revisión' : (method === 'POS' ? 'Pendiente Pago (POS)' : method === 'Efectivo' ? 'Pendiente Pago (Efectivo)' : 'Pendiente Pago');
@@ -308,6 +341,13 @@ $('reg-form').addEventListener('submit', async (e) => {
     if (error) {
       console.error(error);
       if (String(error.message || '').includes('uq_registrations_event_name_phone')) return formError(DUP_MSG);
+      const mc = /CUPO_LLENO\|([^|]*)\|(.*)$/.exec(String(error.message || ''));
+      if (mc) {
+        await loadOccupancy();
+        FormFields.refreshOccupancy($('dyn-fields'), evt.formFields, 'f-', occupancy, false, true);
+        updateTotals();
+        return formError(cupoMsg(mc[2].trim()));
+      }
       if ((await registrationsOpen()) === false) return showClosed();   // se cerraron mientras llenaba el formulario
       return formError('No pudimos completar tu inscripción. Inténtalo de nuevo en un momento.');
     }

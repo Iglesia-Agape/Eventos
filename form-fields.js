@@ -11,6 +11,7 @@
   const MAX_VAL = 200;
   const MAX_LONG = 500;
   const YESNO = ['Sí', 'No'];
+  const OTHER = '__otro__';
   const EXTRA_TYPES = ['text', 'number', 'select', 'textarea', 'yesno'];
   const DEFAULT_LABELS = { text: 'Campo extra', number: 'Número', select: 'Lista', textarea: 'Texto largo', yesno: 'Sí / No' };
   const INPUT_PUBLIC = 'w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 text-base sm:text-sm text-white focus:outline-none focus:border-indigo-500';
@@ -48,6 +49,23 @@
     return Object.keys(out).length ? out : undefined;
   }
 
+  // Cupo por opción: { "Taller de fotografía": 20 } (enteros mayores que 0)
+  function sanitizeLimits(obj) {
+    const out = {};
+    if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+      Object.keys(obj).slice(0, MAX_OPTS + 2).forEach(k => {
+        const n = Math.floor(Number(obj[k]));
+        if (isFinite(n) && n >= 1 && n <= 100000) out[String(k).slice(0, 80)] = n;
+      });
+    }
+    return Object.keys(out).length ? out : undefined;
+  }
+
+  function sanitizeHelp(s) {
+    const t = String(s || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+    return t || undefined;
+  }
+
   function normalizeFormFields(raw) {
     const defaults = defaultFormFields();
     const list = Array.isArray(raw) ? raw : [];
@@ -64,6 +82,7 @@
         seenSys[f.key] = true;
         const row = defaults.find(x => x.key === f.key);
         row.label = sanitizeLabel(f.label, row.label);
+        row.help = sanitizeHelp(f.help);
         if (f.key !== 'name') {
           row.enabled = f.enabled !== false;
           row.required = row.enabled && f.required !== false;
@@ -84,6 +103,9 @@
         enabled: true,
         options: type === 'select' ? sanitizeOptions(f.options) : undefined,
         prices: (type === 'select' || type === 'yesno') ? sanitizePrices(f.prices) : undefined,
+        limits: (type === 'select' || type === 'yesno') ? sanitizeLimits(f.limits) : undefined,
+        allowOther: type === 'select' ? !!f.allowOther : undefined,
+        help: sanitizeHelp(f.help),
         showIf: (f.showIf && typeof f.showIf === 'object')
           ? { field: String(f.showIf.field || '').replace(/[^\w-]/g, '').slice(0, 24), value: String(f.showIf.value == null ? '' : f.showIf.value).slice(0, 80) }
           : undefined
@@ -103,13 +125,18 @@
       }
       if (f.type === 'select' || f.type === 'yesno') {
         earlier[f.id] = f;
+        const valid = f.type === 'yesno' ? YESNO : (f.options || []);
         if (f.prices) {
-          const valid = f.type === 'yesno' ? YESNO : (f.options || []);
           Object.keys(f.prices).forEach(k => { if (valid.indexOf(k) === -1) delete f.prices[k]; });
           if (!Object.keys(f.prices).length) delete f.prices;
         }
+        if (f.limits) {
+          Object.keys(f.limits).forEach(k => { if (valid.indexOf(k) === -1) delete f.limits[k]; });
+          if (!Object.keys(f.limits).length) delete f.limits;
+        }
+        if (!f.allowOther) delete f.allowOther;
       } else {
-        delete f.prices;
+        delete f.prices; delete f.limits; delete f.allowOther;
       }
     });
     ['name', 'phone', 'age'].forEach((k, i, order) => {
@@ -138,6 +165,38 @@
     if (field.key === 'phone') return prefix + 'phone';
     if (field.key === 'age') return prefix + 'age';
     return prefix + 'x-' + field.id;
+  }
+
+  function hasLimits(fields) {
+    return normalizeFormFields(fields).some(f => f.limits && Object.keys(f.limits).length > 0);
+  }
+
+  // Texto de una opción con cupo: "Taller (quedan 3)" / "Taller (agotado)"
+  function occLabel(field, o, occupancy, compact) {
+    const limit = field.limits && field.limits[o];
+    if (!limit) return { text: o, full: false };
+    const used = (occupancy && occupancy[field.id] && occupancy[field.id][o]) || 0;
+    const left = limit - used;
+    if (left <= 0) return { text: o + (compact ? ' (lleno)' : ' (agotado)'), full: true };
+    return { text: (compact || left <= 10) ? o + ' (quedan ' + left + ')' : o, full: false };
+  }
+
+  // Actualiza los cupos mostrados sin volver a dibujar el formulario. Con force, desmarca las opciones que se llenaron.
+  function refreshOccupancy(container, fields, prefix, occupancy, compact, force) {
+    visibleFields(fields).forEach(field => {
+      if (!field.limits) return;
+      const sel = document.getElementById(fieldInputId(prefix, field));
+      if (!sel) return;
+      Array.prototype.forEach.call(sel.options, opt => {
+        const base = opt.getAttribute('data-base');
+        if (!base || !field.limits[base]) return;
+        const info = occLabel(field, base, occupancy, compact);
+        opt.textContent = info.text;
+        opt.disabled = info.full && !compact && (force || sel.value !== base);
+        if (force && info.full && !compact && sel.value === base) sel.value = '';
+      });
+    });
+    if (container) applyConditions(container, fields, prefix);
   }
 
   function hasPricing(fields) {
@@ -175,7 +234,12 @@
 
   function currentValue(prefix, field) {
     const el = document.getElementById(fieldInputId(prefix, field));
-    return el ? String(el.value || '').trim() : '';
+    let v = el ? String(el.value || '').trim() : '';
+    if (v === OTHER) {
+      const o = document.getElementById(fieldInputId(prefix, field) + '-other');
+      v = 'Otro: ' + (o ? String(o.value || '').replace(/\s+/g, ' ').trim() : '');
+    }
+    return v;
   }
 
   // Muestra u oculta los campos que dependen de otra respuesta (en orden, para que funcionen en cadena)
@@ -186,6 +250,11 @@
       const wrap = container.querySelector('[data-ff-id="' + field.id + '"]');
       const show = !field.showIf || answers[field.showIf.field] === field.showIf.value;
       if (wrap) wrap.classList.toggle('hidden', !show);
+      if (field.allowOther) {
+        const o = container.querySelector('[data-ff-other="' + field.id + '"]');
+        const sel = document.getElementById(fieldInputId(prefix, field));
+        if (o && sel) o.classList.toggle('hidden', sel.value !== OTHER);
+      }
       if (show && field.key === 'extra') {
         const v = currentValue(prefix, field);
         if (v !== '') answers[field.id] = v;
@@ -199,6 +268,7 @@
     const compact = !!(opts && opts.compact);
     const values = (opts && opts.values) || {};
     const extraData = values.extraData && typeof values.extraData === 'object' ? values.extraData : {};
+    const occupancy = (opts && opts.occupancy) || {};
     const cls = compact ? INPUT_ADMIN : INPUT_PUBLIC;
     container.innerHTML = '';
     visibleFields(fields).forEach(field => {
@@ -210,6 +280,16 @@
       label.className = 'block text-xs font-medium text-slate-300 mb-1';
       label.textContent = field.label + (field.required ? ' *' : '');
       wrap.appendChild(label);
+      if (field.help) {
+        const h = document.createElement('p');
+        h.className = 'text-[11px] text-slate-500 mb-1';
+        h.textContent = field.help;
+        wrap.appendChild(h);
+      }
+
+      let initial = field.key === 'extra' && extraData[field.id] != null ? String(extraData[field.id]) : '';
+      let otherText = '';
+      if (field.type === 'select' && field.allowOther && initial.indexOf('Otro: ') === 0) { otherText = initial.slice(6); initial = OTHER; }
 
       let input;
       if (field.type === 'select' || field.type === 'yesno') {
@@ -220,10 +300,19 @@
         input.appendChild(ph);
         (field.type === 'yesno' ? YESNO : (field.options || [])).forEach(o => {
           const opt = document.createElement('option');
+          const info = occLabel(field, o, occupancy, compact);
           opt.value = o;
-          opt.textContent = o;
+          opt.setAttribute('data-base', o);
+          opt.textContent = info.text;
+          if (info.full && !compact && o !== initial) opt.disabled = true;   // cupo lleno (al editar se conserva la opción actual)
           input.appendChild(opt);
         });
+        if (field.type === 'select' && field.allowOther) {
+          const ot = document.createElement('option');
+          ot.value = OTHER;
+          ot.textContent = 'Otro (especificar)';
+          input.appendChild(ot);
+        }
       } else if (field.type === 'textarea') {
         input = document.createElement('textarea');
         input.rows = compact ? 2 : 3;
@@ -250,8 +339,20 @@
       if (field.key === 'name') input.value = values.name || '';
       else if (field.key === 'phone') input.value = values.phone || '';
       else if (field.key === 'age') input.value = (values.age != null && values.age !== '') ? String(values.age) : '';
-      else input.value = extraData[field.id] != null ? String(extraData[field.id]) : '';
+      else input.value = initial;
       wrap.appendChild(input);
+      if (field.type === 'select' && field.allowOther) {
+        const other = document.createElement('input');
+        other.type = 'text';
+        other.id = id + '-other';
+        other.maxLength = 80;
+        other.autocomplete = 'off';
+        other.setAttribute('data-ff-other', field.id);
+        other.setAttribute('aria-label', 'Escribe tu respuesta');
+        other.className = cls + ' mt-2 hidden';
+        other.value = otherText;
+        wrap.appendChild(other);
+      }
       container.appendChild(wrap);
     });
     if (container._ffOnChange) container.removeEventListener('change', container._ffOnChange);
@@ -269,7 +370,7 @@
       // Un campo condicional que no corresponde no se pide ni se guarda
       if (field.showIf && answers[field.showIf.field] !== field.showIf.value) continue;
       const el = document.getElementById(fieldInputId(prefix, field));
-      const raw = el ? String(el.value || '').trim() : '';
+      let raw = el ? String(el.value || '').trim() : '';
       if (field.key === 'name') {
         out.name = raw.replace(/\s+/g, ' ');
         if (out.name.length < 3) {
@@ -310,11 +411,17 @@
           out.age = age;
         }
       } else {
+        if (field.type === 'select' && raw === OTHER) {
+          const o = document.getElementById(fieldInputId(prefix, field) + '-other');
+          const t = o ? String(o.value || '').replace(/\s+/g, ' ').trim().slice(0, 80) : '';
+          if (t.length < 2) { out.error = 'Escribe tu respuesta en «Otro» de ' + field.label; return out; }
+          raw = 'Otro: ' + t;
+        }
         if (field.required && !raw) {
           out.error = 'Completa: ' + field.label;
           return out;
         }
-        if (field.type === 'select' && raw && (field.options || []).indexOf(raw) === -1) {
+        if (field.type === 'select' && raw && (field.options || []).indexOf(raw) === -1 && !(field.allowOther && raw.indexOf('Otro: ') === 0)) {
           out.error = 'Elige una opción válida en ' + field.label;
           return out;
         }
@@ -346,11 +453,14 @@
     readFormFields,
     applyConditions,
     hasPricing,
+    hasLimits,
+    refreshOccupancy,
+    OTHER,
     computeTotal,
     readAnswers,
     fieldInputId,
     MAX_EXTRA,
     DEFAULT_LABELS,
-    VERSION: 4
+    VERSION: 5
   };
 })(window);

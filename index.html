@@ -13,7 +13,7 @@
 
   <!-- Archivo de Configuración Centralizada (Webhook y Supabase) -->
   <script src="config.js"></script>
-  <script src="form-fields.js?v=4"></script>
+  <script src="form-fields.js?v=5"></script>
 
   <!-- Tailwind CSS -->
   <link rel="stylesheet" href="estilos.css">
@@ -1935,6 +1935,49 @@ function closePassModal() {
       }
     }
 
+    // Aviso al quitar campos u opciones que ya tienen respuestas de personas inscritas
+    function removedFieldsWarning(evt, newFields) {
+      const regs = state.registrations.filter(r => r.eventId === evt.id);
+      if (!regs.length) return '';
+      const byId = {};
+      newFields.forEach(f => { byId[f.id] = f; });
+      const lines = [];
+      FormFields.extraFields(evt.formFields).forEach(of => {
+        const answered = regs.filter(r => { const v = (r.extraData || {})[of.id]; return v != null && v !== ''; });
+        const nf = byId[of.id];
+        if (!nf) {
+          if (answered.length) lines.push('• Quitaste «' + of.label + '»: ' + answered.length + (answered.length === 1 ? ' persona ya respondió.' : ' personas ya respondieron.'));
+          return;
+        }
+        if (nf.type !== of.type) {
+          if (answered.length) lines.push('• Cambiaste el tipo de «' + of.label + '»: ' + answered.length + ' respuestas ya guardadas.');
+          return;
+        }
+        if (of.type === 'select') {
+          (of.options || []).filter(o => (nf.options || []).indexOf(o) === -1).forEach(o => {
+            const n = answered.filter(r => r.extraData[of.id] === o).length;
+            if (n) lines.push('• Quitaste la opción «' + o + '» de «' + of.label + '»: ' + n + (n === 1 ? ' persona la eligió.' : ' personas la eligieron.'));
+          });
+        }
+      });
+      if (!lines.length) return '';
+      return 'Este evento ya tiene inscritos y estos cambios afectan sus respuestas:\n\n' + lines.slice(0, 8).join('\n') + (lines.length > 8 ? '\n• ...' : '') +
+        '\n\nLas respuestas se conservan en la base de datos, pero dejarán de verse en la tabla, el resumen y el CSV.\n¿Guardar de todas formas?';
+    }
+
+    // Cuántas personas ya eligieron cada opción con cupo (sin contar pagos rechazados)
+    function occupancyFromState(evt) {
+      const occ = {};
+      FormFields.normalizeFormFields(evt.formFields).forEach(f => {
+        if (f.key !== 'extra' || !f.limits) return;
+        occ[f.id] = {};
+        Object.keys(f.limits).forEach(k => {
+          occ[f.id][k] = state.registrations.filter(r => r.eventId === evt.id && r.paymentStatus !== 'Rechazado' && (r.extraData || {})[f.id] === k).length;
+        });
+      });
+      return occ;
+    }
+
     function collectFormFieldsForSave() {
       const fields = FormFields.normalizeFormFields(draftFormFields);
       const bad = fields.find(f => f.type === 'select' && (!f.options || f.options.length < 2));
@@ -2044,18 +2087,29 @@ function closePassModal() {
       } else if (k === 'priceYes') {
         const n = Math.round(parseFloat(el.value) * 100) / 100;
         if (n > 0) f.prices = { 'Sí': n }; else delete f.prices;
+      } else if (k === 'limitYes') {
+        const n = Math.floor(parseFloat(el.value));
+        if (n >= 1) f.limits = { 'Sí': n }; else delete f.limits;
+      } else if (k === 'allowOther') {
+        f.allowOther = el.checked;
+      } else if (k === 'help') {
+        f.help = el.value;
       } else if (k === 'options') {
-        const opts = [], prices = {};
+        const opts = [], prices = {}, limits = {};
         String(el.value || '').split('\n').forEach(line => {
-          const i = line.lastIndexOf('|');
-          let label = line, price = 0;
-          if (i >= 0) { label = line.slice(0, i); price = parseFloat(line.slice(i + 1).replace(/[^\d.,]/g, '').replace(',', '.')); }
-          label = label.replace(/\s+/g, ' ').trim();
+          const parts = line.split('|');
+          const label = (parts[0] || '').replace(/\s+/g, ' ').trim();
           opts.push(label);
-          if (label && price > 0) prices[label] = Math.round(price * 100) / 100;
+          parts.slice(1).forEach(seg => {
+            const t = seg.trim();
+            if (!t || !label) return;
+            if (/cupo/i.test(t)) { const n = parseInt(t.replace(/\D/g, ''), 10); if (n > 0) limits[label] = n; }
+            else { const n = parseFloat(t.replace(/[^\d.,]/g, '').replace(',', '.')); if (n > 0) prices[label] = Math.round(n * 100) / 100; }
+          });
         });
         f.options = opts;
         if (Object.keys(prices).length) f.prices = prices; else delete f.prices;
+        if (Object.keys(limits).length) f.limits = limits; else delete f.limits;
         if (e.type === 'change') renderFieldsEditor();   // al terminar de editar, se actualizan las condiciones que dependen de esta lista
       } else if (k === 'showField') {
         if (!el.value) delete f.showIf;
@@ -2076,7 +2130,7 @@ function closePassModal() {
       draftFormFields = FormFields.normalizeFormFields(draftFormFields);
       refreshCopyFieldsSelect();
       box.innerHTML = '';
-      const ffOk = (FormFields.VERSION || 0) >= 4;
+      const ffOk = (FormFields.VERSION || 0) >= 5;
       if (!ffOk) {
         const warn = document.createElement('p');
         warn.className = 'text-xs p-3 rounded-xl bg-amber-950/40 border border-amber-500/30 text-amber-200';
@@ -2158,6 +2212,22 @@ function closePassModal() {
         row.appendChild(reqL);
         card.appendChild(row);
 
+        if (ffOk) {
+          const hp = document.createElement('input');
+          hp.type = 'text';
+          hp.maxLength = 200;
+          hp.dataset.fid = field.id;
+          hp.dataset.k = 'help';
+          hp.value = field.help || '';
+          hp.setAttribute('aria-label', 'Texto de ayuda (opcional)');
+          hp.className = 'w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500';
+          const hpl = document.createElement('p');
+          hpl.className = 'text-[10px] text-slate-400';
+          hpl.textContent = 'Texto de ayuda (opcional): se muestra debajo del nombre del campo.';
+          card.appendChild(hpl);
+          card.appendChild(hp);
+        }
+
         if (!sys && ffOk) {
           const idx = draftFormFields.indexOf(field);
           const ctrls = draftFormFields.slice(0, idx).filter(x => x.key === 'extra' && (x.type === 'select' || x.type === 'yesno') && (x.type === 'yesno' || (x.options || []).length));
@@ -2208,20 +2278,43 @@ function closePassModal() {
           pr.appendChild(inp);
           pr.appendChild(document.createTextNode('(vacío = no cambia el precio)'));
           card.appendChild(pr);
+          const lm = document.createElement('div');
+          lm.className = 'flex flex-wrap items-center gap-2 text-[11px] text-slate-300';
+          lm.appendChild(document.createTextNode('Cupo máximo para «Sí»:'));
+          const li = document.createElement('input');
+          li.type = 'number'; li.min = '1'; li.step = '1';
+          li.dataset.fid = field.id; li.dataset.k = 'limitYes';
+          li.setAttribute('aria-label', 'Cupo máximo de personas que pueden elegir Sí');
+          li.value = (field.limits && field.limits['Sí']) ? field.limits['Sí'] : '';
+          li.className = 'w-24 bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-indigo-500';
+          lm.appendChild(li);
+          lm.appendChild(document.createTextNode('(vacío = sin límite)'));
+          card.appendChild(lm);
         }
 
         if (field.type === 'select') {
           const hint = document.createElement('p');
           hint.className = 'text-[10px] text-slate-400';
-          hint.textContent = 'Opciones de la lista (una por línea). La persona verá estas opciones y elegirá una. Para que una opción cueste extra, escribe una barra | y el monto después de ella.';
+          hint.textContent = 'Opciones de la lista (una por línea). Para cobrar extra por una opción, agrega | y el monto. Para limitar los lugares, agrega | y la palabra cupo con el número.';
           const ta = document.createElement('textarea');
           ta.rows = 3;
-          ta.value = (field.options || []).map(o => (field.prices && field.prices[o]) ? o + ' | ' + field.prices[o] : o).join('\n');
+          ta.value = (field.options || []).map(o => [o, (field.prices && field.prices[o]) ? field.prices[o] : null, (field.limits && field.limits[o]) ? 'cupo ' + field.limits[o] : null].filter(x => x !== null).join(' | ')).join('\n');
           ta.dataset.fid = field.id;
           ta.dataset.k = 'options';
           ta.className = 'w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-indigo-500';
           card.appendChild(hint);
           card.appendChild(ta);
+          if (ffOk) {
+            const ow = document.createElement('label');
+            ow.className = 'flex items-center gap-2 text-[11px] text-slate-300';
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.dataset.fid = field.id; cb.dataset.k = 'allowOther';
+            cb.checked = !!field.allowOther;
+            ow.appendChild(cb);
+            ow.appendChild(document.createTextNode('Agregar la opción «Otro (especificar)» para que la persona escriba su respuesta'));
+            card.appendChild(ow);
+          }
         }
         box.appendChild(card);
       });
@@ -2424,6 +2517,8 @@ function closePassModal() {
       const minCap = Math.max(1, Math.min(regsCount, evt.capacity));
       if (!Number.isInteger(capacity) || capacity < minCap) return showToast(`La capacidad no puede ser menor a ${minCap} (inscritos actuales).`, 'warning');
       if (evt.isPaid && !(price >= 0)) return showToast('Escribe un precio válido.', 'warning');
+      const removalWarn = removedFieldsWarning(evt, fieldsPack.fields);
+      if (removalWarn && !confirm(removalWarn)) return;
 
       btn.disabled = true;
       btn.innerHTML = `<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> Guardando cambios...`;
@@ -2598,6 +2693,7 @@ function closePassModal() {
       FormFields.renderFormFields(document.getElementById('reg-dyn-fields'), evt.formFields, {
         prefix: 'reg-',
         compact: true,
+        occupancy: occupancyFromState(evt),
         values: {
           name: reg ? reg.name : '',
           phone: reg ? (reg.phone || '') : '',
@@ -2764,7 +2860,17 @@ function closePassModal() {
           const map = tally(r => ans(r) || 'Sin respuesta', base);
           const rows = opts.map(o => map.get(o) || { label: o, total: 0, arrived: 0 });
           if (map.has('Sin respuesta')) rows.push(map.get('Sin respuesta'));
-          map.forEach((v, k) => { if (!opts.includes(k) && k !== 'Sin respuesta') rows.push(v); });   // valores que ya no están en la lista
+          const other = { label: 'Otro', total: 0, arrived: 0 };
+          map.forEach((v, k) => {
+            if (opts.includes(k) || k === 'Sin respuesta') return;
+            if (f.allowOther && k.indexOf('Otro: ') === 0) { other.total += v.total; other.arrived += v.arrived; return; }   // las respuestas escritas se agrupan
+            rows.push(v);   // valores que ya no están en la lista
+          });
+          if (other.total) rows.push(other);
+          rows.forEach(r => {
+            const lim = f.limits && f.limits[r.label];
+            if (lim) { r.limit = lim; r.used = base.filter(x => x.paymentStatus !== 'Rechazado' && ans(x) === r.label).length; }
+          });
           sections.push({ title: f.label, rows });
         } else if (f.type === 'number') {
           const vals = base.map(ans).filter(v => v !== '').map(Number).filter(isFinite);
@@ -2815,10 +2921,16 @@ function closePassModal() {
         const max = Math.max(1, ...sec.rows.map(r => r.total));
         html += '<div class="space-y-1.5 ' + (sec.rows.length > 12 ? 'max-h-72 overflow-y-auto pr-1' : '') + '">';
         sec.rows.forEach(r => {
+          const hasLim = !!r.limit;
+          const full = hasLim && r.used >= r.limit;
+          const count = hasLim
+            ? '<strong class="' + (full ? 'text-amber-300' : 'text-white') + '">' + r.used + ' de ' + r.limit + '</strong> cupos' + (full ? ' · LLENO' : '') + ' · ' + r.arrived + ' llegaron'
+            : '<strong class="text-white">' + r.total + '</strong> inscritos · ' + r.arrived + ' llegaron';
+          const pct = hasLim ? Math.min(100, Math.round(r.used / r.limit * 100)) : Math.round(r.total / max * 100);
           html += '<div class="text-xs"><div class="flex items-center justify-between gap-2"><span class="text-slate-200 truncate">' + esc(r.label) + '</span>' +
-            '<span class="text-slate-400 font-mono whitespace-nowrap"><strong class="text-white">' + r.total + '</strong> inscritos · ' + r.arrived + ' llegaron</span></div>' +
-            '<div class="h-1.5 rounded-full bg-slate-800 mt-1"><div class="h-1.5 rounded-full bg-indigo-500" data-w="' + Math.round(r.total / max * 100) + '"></div></div></div>';
-          text += '- ' + r.label + ': ' + r.total + ' (llegaron ' + r.arrived + ')\n';
+            '<span class="text-slate-400 font-mono whitespace-nowrap">' + count + '</span></div>' +
+            '<div class="h-1.5 rounded-full bg-slate-800 mt-1"><div class="h-1.5 rounded-full ' + (full ? 'bg-amber-500' : 'bg-indigo-500') + '" data-w="' + pct + '"></div></div></div>';
+          text += '- ' + r.label + ': ' + (hasLim ? r.used + ' de ' + r.limit + ' cupos' + (full ? ' (LLENO)' : '') : r.total + ' inscritos') + ' (llegaron ' + r.arrived + ')\n';
         });
         html += '</div></div>';
       });
@@ -3214,7 +3326,9 @@ function closePassModal() {
           if (!v) { if (f.required) warns.push('falta ' + f.label); return; }
           if (f.type === 'select') {
             const opt = (f.options || []).find(o => impNorm(o) === impNorm(v));
-            if (opt) extra[f.id] = opt; else warns.push(f.label + ': "' + v + '" no está en la lista');
+            if (opt) extra[f.id] = opt;
+            else if (f.allowOther) extra[f.id] = 'Otro: ' + v.slice(0, 80);
+            else warns.push(f.label + ': "' + v + '" no está en la lista');
           } else if (f.type === 'yesno') {
             const n = impNorm(v);
             if (['si', 's', 'yes', 'y', 'true', '1', 'x'].includes(n)) extra[f.id] = 'Sí';
