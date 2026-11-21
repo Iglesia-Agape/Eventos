@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- Seguridad (CSP): igual que inscripcion.html, pero sin servicios que esta página no usa. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://*.supabase.co; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" type="image/png" href="Logo.png">
+<title>Lista de inscritos | Ministerio Internacional Ágape</title>
+<script defer src="config.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4"></script>
+<script defer src="lista.js"></script>
+<style>
+  :root {
+    --bg: #020617;
+    --panel: #0f172a;
+    --line: #1e293b;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --accent: #34d399;
+    --ok-bg: rgba(16, 185, 129, .14);   --ok: #6ee7b7;
+    --warn-bg: rgba(245, 158, 11, .14); --warn: #fcd34d;
+    --bad-bg: rgba(244, 63, 94, .14);   --bad: #fda4af;
+    --mute-bg: rgba(148, 163, 184, .14); --mute: #cbd5e1;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+  }
+  header {
+    border-bottom: 1px solid var(--line);
+    background: rgba(15, 23, 42, .9);
+  }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 0 16px; }
+  .brand { display: flex; align-items: center; gap: 10px; height: 60px; }
+  .brand img { width: 34px; height: 34px; object-fit: contain; border-radius: 8px; }
+  .brand b { display: block; font-size: 14px; }
+  .brand span { font-size: 11px; color: var(--muted); }
+
+  main { padding: 24px 0 48px; }
+  h1 { font-size: 24px; line-height: 1.2; margin: 0 0 4px; font-weight: 800; }
+  .when { color: var(--muted); font-size: 13px; margin: 0 0 20px; }
+
+  .total {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 18px 20px;
+    display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+  }
+  .total .n { font-size: 56px; font-weight: 800; line-height: 1; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .total .l { font-size: 15px; color: var(--text); }
+  .total .sub { margin-left: auto; font-size: 13px; color: var(--muted); text-align: right; }
+  .bar { height: 6px; border-radius: 99px; background: var(--line); margin-top: 14px; overflow: hidden; width: 100%; }
+  .bar i { display: block; height: 100%; background: var(--accent); width: 0; transition: width .4s ease; }
+
+  .tools { display: flex; gap: 10px; align-items: center; margin: 20px 0 10px; flex-wrap: wrap; }
+  .tools input {
+    flex: 1 1 220px; min-width: 0;
+    background: var(--panel); color: var(--text);
+    border: 1px solid var(--line); border-radius: 12px;
+    padding: 10px 12px; font-size: 16px;
+  }
+  .tools input:focus-visible, .tools button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .live { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+  .dot.off { background: #f59e0b; }
+
+  .tablebox { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { padding: 10px 14px; text-align: left; white-space: nowrap; }
+  th { font-size: 12px; font-weight: 600; color: var(--muted); border-bottom: 1px solid var(--line); background: #0b1224; }
+  td { border-bottom: 1px solid rgba(30, 41, 59, .6); }
+  tr:last-child td { border-bottom: 0; }
+  td.num { color: var(--muted); width: 1%; font-variant-numeric: tabular-nums; }
+  td.name { white-space: normal; font-weight: 600; }
+  .pill { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 10px; border-radius: 99px; }
+  .pill.ok { background: var(--ok-bg); color: var(--ok); }
+  .pill.warn { background: var(--warn-bg); color: var(--warn); }
+  .pill.bad { background: var(--bad-bg); color: var(--bad); }
+  .pill.mute { background: var(--mute-bg); color: var(--mute); }
+  .empty { padding: 28px 16px; text-align: center; color: var(--muted); font-size: 14px; }
+
+  #state-msg { text-align: center; padding: 72px 8px; }
+  #state-msg h2 { margin: 0 0 6px; font-size: 18px; }
+  #state-msg p { margin: 0 auto; max-width: 360px; color: var(--muted); font-size: 14px; }
+  .hidden { display: none !important; }
+  .foot { margin-top: 16px; font-size: 11px; color: var(--muted); text-align: center; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="brand">
+      <img src="Logo.png" alt="" width="34" height="34">
+      <div><b>Ministerio Internacional Ágape</b><span>Lista de inscritos</span></div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <div id="state-msg">
+    <h2 id="msg-title">Cargando lista…</h2>
+    <p id="msg-text"></p>
+  </div>
+
+  <div id="content" class="hidden">
+    <h1 id="ev-title"></h1>
+    <p class="when" id="ev-date"></p>
+
+    <section class="total" aria-live="polite">
+      <span class="n" id="c-total">0</span>
+      <span class="l" id="c-label">inscritos</span>
+      <span class="sub" id="c-sub"></span>
+      <div class="bar" aria-hidden="true"><i id="c-bar"></i></div>
+    </section>
+
+    <div class="tools">
+      <input id="search" type="search" placeholder="Buscar por nombre" aria-label="Buscar por nombre" autocomplete="off">
+      <span class="live"><span class="dot" id="dot"></span><span id="updated">Actualizando…</span></span>
+    </div>
+
+    <div class="tablebox">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">N.°</th>
+            <th scope="col">Nombre</th>
+            <th scope="col" id="th-status">Pago</th>
+            <th scope="col">Asistencia</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div id="empty" class="empty hidden"></div>
+    </div>
+
+    <p class="foot">La lista se actualiza sola cada pocos segundos.</p>
+  </div>
+
+</main>
+
+</body>
+</html>

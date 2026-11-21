@@ -191,6 +191,13 @@
                   <i data-lucide="qr-code" class="w-3.5 h-3.5 text-indigo-400"></i>
                   QR del evento
                 </button>
+                <button onclick="copyListLink(false)" id="btn-list-link" title="Copiar el enlace de la lista de inscritos en vivo (solo lectura)" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-lg border border-slate-700 flex items-center gap-1.5 transition">
+                  <i data-lucide="list-checks" class="w-3.5 h-3.5 text-emerald-400"></i>
+                  Link de lista en vivo
+                </button>
+                <button onclick="copyListLink(true)" id="btn-list-link-new" title="Generar un enlace nuevo: el anterior deja de funcionar" class="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 text-xs rounded-lg border border-slate-700 transition">
+                  <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                </button>
                 <button onclick="openPublicViewFromAdmin()" title="Abrir la vista de asistentes en nueva pestaña" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-lg border border-slate-700 flex items-center gap-1.5 transition">
                   <i data-lucide="external-link" class="w-3.5 h-3.5 text-indigo-400"></i>
                   Ver como Asistente
@@ -1426,6 +1433,7 @@
       // Eventos gratuitos: sin tarjeta de pagos ni accesos a Drive (no hay comprobantes)
       document.getElementById('card-stat-paid').classList.toggle('hidden', !evt.isPaid);
       document.getElementById('btn-link-drive').classList.toggle('hidden', !evt.isPaid);
+      ['btn-list-link', 'btn-list-link-new'].forEach(id => document.getElementById(id)?.classList.toggle('hidden', isStaffRole()));
       if (!evt.isPaid) btnOpenDrive.classList.add('hidden');
 
       // Estado de las inscripciones (abiertas / cerradas a mano / cerradas por fecha)
@@ -1461,6 +1469,17 @@
       <option value="all">Todos</option>
       <option value="Llegó">Asistió</option>`;
 
+    // Número de inscripción: 1 = la primera persona inscrita en el evento.
+    // La misma regla usa la página pública lista.html (función lista_publica en Supabase).
+    function inscriptionNumbers(eventId) {
+      const sorted = state.registrations
+        .filter(r => r.eventId === eventId)
+        .sort((a, b) => (new Date(a.createdAt) - new Date(b.createdAt)) || String(a.id).localeCompare(String(b.id)));
+      const map = new Map();
+      sorted.forEach((r, i) => map.set(r.id, i + 1));
+      return map;
+    }
+
     function renderTable() {
       const tbody = document.getElementById('registrations-tbody');
       tbody.innerHTML = '';
@@ -1486,8 +1505,9 @@
       const nameLabel = (visFields.find(f => f.key === 'name') || {}).label || 'Nombre y apellido';
       const phoneLabel = (visFields.find(f => f.key === 'phone') || {}).label || 'Celular';
       const ageLabel = (visFields.find(f => f.key === 'age') || {}).label || 'Edad';
-      const colCount = 4 + (paid ? 3 : 0) + (showPhone ? 1 : 0) + (showAge ? 1 : 0) + extras.length;
+      const colCount = 5 + (paid ? 3 : 0) + (showPhone ? 1 : 0) + (showAge ? 1 : 0) + extras.length;
       document.getElementById('table-head').innerHTML = `<tr>
+        <th class="py-3 px-4">N.°</th>
         <th class="py-3 px-4">Código</th>
         <th class="py-3 px-4">Asistencia</th>
         ${paid ? '<th class="py-3 px-4">Estado Pago</th>' : ''}
@@ -1504,6 +1524,8 @@
       const statusFilter = filterSel.value || 'all';
 
       let regs = state.registrations.filter(r => r.eventId === state.currentEventId);
+      // Número de inscripción (orden de llegada); no cambia al buscar o filtrar
+      const nums = inscriptionNumbers(state.currentEventId);
 
       if (query) {
         regs = regs.filter(r => {
@@ -1572,6 +1594,7 @@
           <td class="py-3 px-4">${receiptLink}</td>` : '';
 
         tr.innerHTML = `
+          <td class="py-3 px-4 font-mono text-slate-400">${nums.get(reg.id) || ''}</td>
           <td class="py-3 px-4 font-mono font-bold text-emerald-400">${esc(reg.code)}</td>
 
           <td class="py-3 px-4">
@@ -1758,6 +1781,30 @@
         showToast('¡Link copiado! Puedes compartirlo por WhatsApp, redes o correo a los asistentes.', 'success');
       }).catch(() => {
         prompt('Copia este enlace de inscripción:', link);
+      });
+    }
+
+    // Enlace de la lista de inscritos en vivo (lista.html). Lleva un código secreto por evento.
+    // Con regenerar = true se crea un código nuevo y el enlace anterior deja de funcionar.
+    async function copyListLink(regenerar) {
+      if (isStaffRole()) return showToast('Solo un administrador puede generar este enlace.', 'warning');
+      if (!state.currentEventId) return showToast('Primero selecciona o crea un evento.', 'warning');
+      if (!supabaseClient) return showToast('Se necesita conexión con Supabase para generar el enlace.', 'error');
+      if (regenerar && !confirm('Se generará un enlace nuevo y el enlace anterior dejará de funcionar.\n\n¿Continuar?')) return;
+      const { data, error } = await supabaseClient.rpc('obtener_token_lista', { p_event_id: state.currentEventId, p_regenerar: !!regenerar });
+      if (error || !data) {
+        return showToast('No se pudo generar el enlace. ¿Ya corriste lista_publica.sql en Supabase?', 'error');
+      }
+      const url = new URL('lista.html', window.location.href);
+      url.search = '';
+      url.hash = '';
+      url.searchParams.set('evento', state.currentEventId);
+      url.searchParams.set('k', data);
+      const link = url.toString();
+      navigator.clipboard.writeText(link).then(() => {
+        showToast(regenerar ? 'Enlace nuevo copiado. El anterior ya no funciona.' : '¡Enlace de la lista copiado! Quien lo abra verá los inscritos en vivo (solo lectura).', 'success');
+      }).catch(() => {
+        prompt('Copia este enlace de la lista:', link);
       });
     }
 
@@ -3975,7 +4022,9 @@ function closePassModal() {
 
     // EXPORTACIÓN A CSV
     function exportCSV() {
-      const regs = state.registrations.filter(r => r.eventId === state.currentEventId);
+      const numsCsv = inscriptionNumbers(state.currentEventId);
+      const regs = state.registrations.filter(r => r.eventId === state.currentEventId)
+        .sort((a, b) => (numsCsv.get(a.id) || 0) - (numsCsv.get(b.id) || 0));
       if (regs.length === 0) return showToast('No hay registros en este evento.', 'info');
       
       const evtCsv = state.events.find(e => e.id === state.currentEventId);
@@ -3986,14 +4035,14 @@ function closePassModal() {
       const nameCsv = (visCsv.find(f => f.key === 'name') || {}).label || 'Nombre';
       const phoneCsv = visCsv.some(f => f.key === 'phone');
       const ageCsv = visCsv.some(f => f.key === 'age');
-      const cols = ['Codigo', 'Asistencia'].concat(paidCsv ? ['EstadoPago'] : [], [nameCsv],
+      const cols = ['N.°', 'Codigo', 'Asistencia'].concat(paidCsv ? ['EstadoPago'] : [], [nameCsv],
         phoneCsv ? [(visCsv.find(f => f.key === 'phone') || {}).label || 'Celular'] : [],
         ageCsv ? [(visCsv.find(f => f.key === 'age') || {}).label || 'Edad'] : [],
         extraCsv.map(f => f.label),
         paidCsv ? ['MetodoPago', 'Monto', 'ComprobanteDrive'] : [], ['FechaRegistro'], legacyCsv ? ['DNI', 'Email'] : []);
       let csv = '\uFEFF' + cols.join(',') + '\n';
       regs.forEach(r => {
-        const row = [r.code, r.attended ? 'LLEGO' : 'PENDIENTE'].concat(paidCsv ? [r.paymentStatus] : [], [r.name],
+        const row = [numsCsv.get(r.id) || '', r.code, r.attended ? 'LLEGO' : 'PENDIENTE'].concat(paidCsv ? [r.paymentStatus] : [], [r.name],
           phoneCsv ? [r.phone || ''] : [],
           ageCsv ? [r.age ?? ''] : [],
           extraCsv.map(f => (r.extraData && r.extraData[f.id]) || ''),
