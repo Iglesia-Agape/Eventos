@@ -118,7 +118,7 @@
 
   async function load() {
     try {
-      var evReq = sb.from('events').select('title,date,capacity').eq('id', eventId).maybeSingle();
+      var evReq = sb.from('events').select('title,date,capacity,is_paid,form_fields').eq('id', eventId).maybeSingle();
       var listReq = sb.rpc('lista_publica', { p_event_id: eventId, p_token: token });
       var results = await Promise.all([evReq, listReq]);
 
@@ -151,6 +151,89 @@
     }
   }
 
+  // ---------- Descarga completa (mismo formato que el CSV del panel) ----------
+  function csvCell(v) {
+    var s = String(v == null ? '' : v);
+    if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;   // evita fórmulas en Excel
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+
+  function flash(btn, text, ms) {
+    var old = btn.dataset.label || btn.textContent;
+    btn.dataset.label = old;
+    btn.textContent = text;
+    setTimeout(function () { btn.textContent = old; btn.disabled = false; }, ms);
+  }
+
+  async function downloadFull() {
+    var btn = $('btn-download');
+    btn.dataset.label = btn.dataset.label || btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Preparando…';
+    try {
+      var res = await sb.rpc('lista_completa', { p_event_id: eventId, p_token: token });
+      if (res.error) throw res.error;
+      var data = res.data || [];
+      if (!data.length) { flash(btn, 'Todavía no hay inscritos', 2500); return; }
+
+      var ev = eventInfo || {};
+      var paid = !!ev.is_paid;
+
+      // Columnas según el formulario del evento (igual que en el panel)
+      var vis = [];
+      try {
+        if (window.FormFields) vis = FormFields.visibleFields(FormFields.normalizeFormFields(ev.form_fields)) || [];
+      } catch (e) { vis = []; }
+      var hasVis = vis.length > 0;
+      function find(key) { return vis.filter(function (f) { return f.key === key; })[0]; }
+
+      var nameLabel = (find('name') || {}).label || 'Nombre';
+      var phoneLabel = (find('phone') || {}).label || 'Celular';
+      var ageLabel = (find('age') || {}).label || 'Edad';
+      var showPhone = hasVis ? !!find('phone') : data.some(function (r) { return r.celular; });
+      var showAge = hasVis ? !!find('age') : data.some(function (r) { return r.edad != null; });
+      var extras = hasVis ? vis.filter(function (f) { return f.key === 'extra'; }) : [];
+      if (!hasVis) {
+        var seen = {};
+        data.forEach(function (r) { Object.keys(r.extra || {}).forEach(function (k) { seen[k] = true; }); });
+        extras = Object.keys(seen).map(function (k) { return { id: k, label: k }; });
+      }
+      var legacy = data.some(function (r) { return r.cedula || r.correo; });
+
+      var cols = ['N.°', 'Codigo', 'Asistencia']
+        .concat(paid ? ['EstadoPago'] : [], [nameLabel],
+          showPhone ? [phoneLabel] : [], showAge ? [ageLabel] : [],
+          extras.map(function (f) { return f.label; }),
+          paid ? ['MetodoPago', 'Monto', 'ComprobanteDrive'] : [],
+          ['FechaRegistro'], legacy ? ['DNI', 'Email'] : []);
+
+      var csv = '\uFEFF' + cols.map(csvCell).join(',') + '\n';
+      data.forEach(function (r) {
+        var ex = r.extra || {};
+        var row = [r.n, r.codigo, r.llego ? 'LLEGO' : 'PENDIENTE']
+          .concat(paid ? [r.estado] : [], [r.nombre],
+            showPhone ? [r.celular || ''] : [], showAge ? [r.edad == null ? '' : r.edad] : [],
+            extras.map(function (f) { return ex[f.id] || ''; }),
+            paid ? [r.metodo || '', r.monto == null ? '' : r.monto, r.comprobante || ''] : [],
+            [r.inscrito_en || ''], legacy ? [r.cedula || '', r.correo || ''] : []);
+        csv += row.map(csvCell).join(',') + '\n';
+      });
+
+      var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'Inscritos_' + (ev.title || 'Evento').replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, '_') + '.csv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
+      flash(btn, 'Descargado ✓', 2000);
+    } catch (e) {
+      var invalid = e && (e.message || '').indexOf('enlace_invalido') !== -1;
+      flash(btn, invalid ? 'Enlace no válido' : 'No se pudo descargar', 3000);
+    }
+  }
+
   function start() {
     if (!eventId || !token) {
       showMessage('Falta el enlace completo', 'Abre la lista con el enlace completo que te compartieron, incluyendo todo lo que va después del signo ?.');
@@ -163,6 +246,7 @@
     sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY.trim());
 
     $('search').addEventListener('input', render);
+    $('btn-download').addEventListener('click', downloadFull);
 
     load();
     timer = setInterval(function () { if (!document.hidden) load(); }, REFRESH_MS);
