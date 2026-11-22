@@ -10,8 +10,8 @@
 <title>Lista de inscritos | Ministerio Internacional Ágape</title>
 <script defer src="config.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4"></script>
-<script defer src="form-fields.js"></script>
-<script defer src="lista.js"></script>
+<script defer src="form-fields.js?v=2"></script>
+<script defer src="lista.js?v=2"></script>
 <style>
   :root {
     --bg: #020617;
@@ -134,6 +134,8 @@
       <button id="btn-download" class="dl" type="button">Descargar Excel</button>
       <span class="live"><span class="dot" id="dot"></span><span id="updated">Actualizando…</span></span>
     </div>
+
+    <p id="dl-msg" class="hidden" style="color:var(--bad);font-size:13px;margin:0 0 10px"></p>
 
     <div class="tablebox">
       <table>

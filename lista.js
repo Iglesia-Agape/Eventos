@@ -170,6 +170,7 @@
     btn.dataset.label = btn.dataset.label || btn.textContent;
     btn.disabled = true;
     btn.textContent = 'Preparando…';
+    $('dl-msg').classList.add('hidden');
     try {
       var res = await sb.rpc('lista_completa', { p_event_id: eventId, p_token: token });
       if (res.error) throw res.error;
@@ -229,8 +230,11 @@
       setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
       flash(btn, 'Descargado ✓', 2000);
     } catch (e) {
+      console.error('Descarga fallida:', e);
       var invalid = e && (e.message || '').indexOf('enlace_invalido') !== -1;
       flash(btn, invalid ? 'Enlace no válido' : 'No se pudo descargar', 3000);
+      $('dl-msg').textContent = 'No se pudo descargar: ' + ((e && (e.message || e.details)) || String(e));
+      $('dl-msg').classList.remove('hidden');
     }
   }
 
